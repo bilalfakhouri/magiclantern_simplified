@@ -117,9 +117,44 @@ static uint32_t PHOTO_CMOS_ISO_START = 0;
 static uint32_t PHOTO_CMOS_ISO_COUNT = 0;
 static uint32_t PHOTO_CMOS_ISO_SIZE = 0;
 
-static uint32_t CMOS_ISO_BITS = 0;
-static uint32_t CMOS_FLAG_BITS = 0;
-static uint32_t CMOS_EXPECTED_FLAG = 0;
+// ML code often uses the term "register", in an overloaded, confusing manner.
+// This is doubly true for Dual ISO code.
+//
+// "Register" may be used to mean an ARM register.
+// It can mean any MMIO mapped address, regardless of whether this actually is
+// a register on the mapped hardware.  And, for dual ISO specifically, there
+// is an ADTG part that has control registers.  See:
+// https://magiclantern.fandom.com/wiki/ADTG
+//
+// Here we care primarily about ADTG control.  We alter cam mem so when DryOS
+// configures ADTG, it will send our control messages, and select
+// our desired hybrid ISO.  The control message is packed in a 32-bit value.
+//
+// There are different encoding schemes in different camera gens.
+// 200D example:
+// |_____|__________|______|______|______|______|_______|
+//   unk   ADTG reg   ISO3   ISO2   ISO1   ISO0   flags
+//
+// An example value: 0x0b400220.  This splits into regions like so:
+// 0_b4_0_0_2_2_0, or:
+// unk = 0, ADTG reg = b4, ISO3-0 = 0, 0, 2, 2, flags = 0.
+// On 200D, 0 => ISO 100, 2 => ISO 400.
+//
+// ADTG reg is b4 on 200d, meaning that ADTG takes the whole message,
+// uses b4 for internal addressing or config, and applies the command
+// portion to b4.
+//
+// ML code treats the 4 ISO values as 2 combined values.  I presume
+// this is because of bayer pattern meaning it's easier to think about
+// two rows of sensor as one row of pixels.
+//
+// ML code makes some assumptions about the layout of bits in the
+// control message.  It assumes flags are in the bottom bits,
+// followed by two blocks, of equal size, holding ISO values,
+// then an ADTG register value.
+static uint32_t CMOS_ISO_BITS = 0; // length, in bits, of each of 2 ISO fields
+static uint32_t CMOS_FLAG_BITS = 0; // length, in bits, of the flag field
+static uint32_t CMOS_EXPECTED_FLAG = 0; // bit field, used for sanity check against flag field
 
 #define CMOS_ISO_MASK ((1 << CMOS_ISO_BITS) - 1)
 #define CMOS_FLAG_MASK ((1 << CMOS_FLAG_BITS) - 1)
@@ -1240,9 +1275,12 @@ static unsigned int dual_iso_init()
 
 //        PHOTO_CMOS_ISO_START = get_photo_cmos_iso_start_200d(); // this returns the RAM copy
         PHOTO_CMOS_ISO_START = 0xe0aaa2fc;
-        PHOTO_CMOS_ISO_COUNT = 18; // Actually seems like 24, although that is higher than I can explain.
-                                   // "backup" array hardcodes size at 20, but, we are not using it,
-                                   // we hold the old values in the patch old_values field.
+        PHOTO_CMOS_ISO_COUNT = 24; // 24 is how it looks in the rom, don't know how it arrives at this.
+                                   // 100-51200, with 1/3 stops in between, should be 28.
+                                   // Perhaps some of the higher, faker ISOs, don't have 1/3 intermediates?
+                                   //
+                                   // NB, "backup" array hard-codes 20 max.  But 200D doesn't use this.
+                                   // Be careful if you copy-paste this code for another cam!
         PHOTO_CMOS_ISO_SIZE  = 36;
 /*
         //PHOTO_CMOS_ISO_START = 0xe1984538; // this is the ROM copy
@@ -1256,9 +1294,9 @@ static unsigned int dual_iso_init()
         FRAME_CMOS_ISO_COUNT = 6;
         FRAME_CMOS_ISO_SIZE  = 36;
 
-        CMOS_ISO_BITS = 3;
-        CMOS_FLAG_BITS = 2;
-        CMOS_EXPECTED_FLAG = 3;
+        CMOS_ISO_BITS = 8;
+        CMOS_FLAG_BITS = 4;
+        CMOS_EXPECTED_FLAG = 0;
     }
     else if (is_camera("700D", "1.1.5"))
     {
