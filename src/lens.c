@@ -3035,7 +3035,7 @@ static LVINFO_UPDATE_FUNC(tv_update)
 }
 
 static int (*dual_iso_is_active)() = MODULE_FUNCTION(dual_iso_is_active);
-static int (*dual_iso_get_recovery_iso)() = MODULE_FUNCTION(dual_iso_get_recovery_iso);
+static int (*dual_iso_get_alternate_iso)() = MODULE_FUNCTION(dual_iso_get_alternate_iso);
 
 static LVINFO_UPDATE_FUNC(iso_update)
 {
@@ -3053,7 +3053,7 @@ static LVINFO_UPDATE_FUNC(iso_update)
     {
         snprintf(buffer, sizeof(buffer), SYM_ISO"%d/%d", 
             raw2iso(lens_info.iso_analog_raw),
-            raw2iso(dual_iso_get_recovery_iso())
+            raw2iso(dual_iso_get_alternate_iso())
         );
     }
     else if (is_movie_mode())

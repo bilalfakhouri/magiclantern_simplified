@@ -73,8 +73,8 @@
 #include "../raw_video/mlv_rec/mlv_rec_interface.h"
 
 static CONFIG_INT("dual_iso.hdr", dual_iso_hdr, 0);
-static CONFIG_INT("dual_iso.iso", dual_iso_recovery_iso, 3);
-static CONFIG_INT("dual_iso.alt", dual_iso_alternate, 0);
+static CONFIG_INT("dual_iso.iso", dual_iso_alternate_iso, 3);
+static CONFIG_INT("dual_iso.alt", dual_iso_every_other, 0);
 static CONFIG_INT("dual_iso.prefix", dual_iso_file_prefix, 0);
 
 extern WEAK_FUNC(ret_0) int raw_lv_is_enabled();
@@ -163,15 +163,15 @@ static uint32_t CMOS_EXPECTED_FLAG = 0; // bit field, used for sanity check agai
 #define CTX_SHOOT_TASK 0
 #define CTX_SET_RECOVERY_ISO 1
 
-static int dual_iso_recovery_iso_index()
+static int get_alternate_iso_index()
 {
     /* CHOICES("-6 EV", "-5 EV", "-4 EV", "-3 EV", "-2 EV", "-1 EV", "+1 EV", "+2 EV", "+3 EV", "+4 EV", "+5 EV", "+6 EV", "100", "200", "400", "800", "1600", "3200", "6400", "12800") */
 
     int max_index = MAX(FRAME_CMOS_ISO_COUNT, PHOTO_CMOS_ISO_COUNT) - 1;
     
     /* absolute mode */
-    if (dual_iso_recovery_iso >= 0)
-        return COERCE(dual_iso_recovery_iso, 0, max_index);
+    if (dual_iso_alternate_iso >= 0)
+        return COERCE(dual_iso_alternate_iso, 0, max_index);
     
     /* relative mode */
 
@@ -179,7 +179,7 @@ static int dual_iso_recovery_iso_index()
     if (lens_info.raw_iso == 0)
         return 0;
     
-    int delta = dual_iso_recovery_iso < -6 ? dual_iso_recovery_iso + 6 : dual_iso_recovery_iso + 7;
+    int delta = dual_iso_alternate_iso < -6 ? dual_iso_alternate_iso + 6 : dual_iso_alternate_iso + 7;
     int canon_iso_index = (lens_info.iso_analog_raw - 72) / 8;
     return COERCE(canon_iso_index + delta, 0, max_index);
 }
@@ -203,7 +203,7 @@ int dual_iso_get_dr_improvement()
     if (!dual_iso_is_active())
         return 0;
     
-    int iso1 = 72 + dual_iso_recovery_iso_index() * 8;
+    int iso1 = 72 + get_alternate_iso_index() * 8;
     int iso2 = lens_info.iso_analog_raw/8*8;
     return dual_iso_calc_dr_improvement(iso1, iso2);
 }
@@ -352,7 +352,7 @@ static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* b
         for (int i = 0; i < count; i++)
         {
             // get the CMOS bits from our target ISO
-            cmos_bits = backup[COERCE(dual_iso_recovery_iso_index(), 0, count-1)] & cmos_bits_mask;
+            cmos_bits = backup[COERCE(get_alternate_iso_index(), 0, count-1)] & cmos_bits_mask;
 
             if (is_5d2) // enable the dual ISO flag
                 cmos_bits |= 1 << (CMOS_FLAG_BITS + CMOS_ISO_BITS + CMOS_ISO_BITS);
@@ -459,9 +459,9 @@ static unsigned int dual_iso_refresh(unsigned int ctx)
     if (PHOTO_CMOS_ISO_COUNT > COUNT(backup_lv)) goto end;
     
     static int prev_sig = 0;
-    int sig = dual_iso_recovery_iso + (lvi << 16) + (raw_mv << 17) + (raw_ph << 18)
-            + (dual_iso_hdr << 24) + (dual_iso_alternate << 25) + (dual_iso_file_prefix << 26)
-            + get_shooting_card()->file_number * dual_iso_alternate + lens_info.raw_iso * 1234;
+    int sig = dual_iso_alternate_iso + (lvi << 16) + (raw_mv << 17) + (raw_ph << 18)
+            + (dual_iso_hdr << 24) + (dual_iso_every_other << 25) + (dual_iso_file_prefix << 26)
+            + get_shooting_card()->file_number * dual_iso_every_other + lens_info.raw_iso * 1234;
     int setting_changed = (sig != prev_sig);
     prev_sig = sig;
     
@@ -478,7 +478,7 @@ static unsigned int dual_iso_refresh(unsigned int ctx)
     }
 
     if (dual_iso_hdr && raw_ph && !enabled_ph && PHOTO_CMOS_ISO_START
-        && ((get_shooting_card()->file_number % 2) || !dual_iso_alternate))
+        && ((get_shooting_card()->file_number % 2) || !dual_iso_every_other))
     {
         enabled_ph = 1;
         int err = dual_iso_enable(PHOTO_CMOS_ISO_START, PHOTO_CMOS_ISO_SIZE, PHOTO_CMOS_ISO_COUNT, backup_ph);
@@ -499,7 +499,7 @@ static unsigned int dual_iso_refresh(unsigned int ctx)
          * so it will mis-label the pics */
         int file_prefix_needs_delay = (ctx == CTX_SHOOT_TASK && lens_info.job_state);
 
-        int iso1 = 72 + dual_iso_recovery_iso_index() * 8;
+        int iso1 = 72 + get_alternate_iso_index() * 8;
         int iso2 = lens_info.iso_analog_raw/8*8;
 
         static int prefix_key = 0;
@@ -548,21 +548,21 @@ int dual_iso_is_active()
     return is_movie_mode() ? enabled_lv : enabled_ph;
 }
 
-int dual_iso_get_recovery_iso()
+int dual_iso_get_alternate_iso()
 {
     if (!dual_iso_is_active())
         return 0;
     
-    return 72 + dual_iso_recovery_iso_index() * 8;
+    return 72 + get_alternate_iso_index() * 8;
 }
 
-int dual_iso_set_recovery_iso(int iso)
+int dual_iso_set_alternate_iso(int iso)
 {
     if (!dual_iso_is_active())
         return 0;
     
     int max_index = MAX(FRAME_CMOS_ISO_COUNT, PHOTO_CMOS_ISO_COUNT) - 1;
-    dual_iso_recovery_iso = COERCE((iso - 72)/8, 0, max_index);
+    dual_iso_alternate_iso = COERCE((iso - 72)/8, 0, max_index);
 
     /* apply the new settings right now */
     dual_iso_refresh(CTX_SET_RECOVERY_ISO);
@@ -673,14 +673,14 @@ static unsigned int dual_iso_playback_fix(unsigned int ctx)
 
 static MENU_UPDATE_FUNC(dual_iso_check)
 {
-    int iso1 = 72 + dual_iso_recovery_iso_index() * 8;
+    int iso1 = 72 + get_alternate_iso_index() * 8;
     int iso2 = lens_info.iso_analog_raw/8*8;
     
     if (!iso2)
         MENU_SET_WARNING(MENU_WARN_ADVICE, "Auto ISO => cannot estimate dynamic range.");
     
     if (!iso2 && iso1 < 0)
-        MENU_SET_WARNING(MENU_WARN_NOT_WORKING, "Auto ISO => cannot use relative recovery ISO.");
+        MENU_SET_WARNING(MENU_WARN_NOT_WORKING, "Auto ISO => cannot use relative alternate ISO.");
     
     if (iso1 == iso2)
         MENU_SET_WARNING(MENU_WARN_INFO, "Both ISOs are identical, nothing to do.");
@@ -719,7 +719,7 @@ static MENU_UPDATE_FUNC(dual_iso_dr_update)
 
 static MENU_UPDATE_FUNC(dual_iso_overlap_update)
 {
-    int iso1 = 72 + dual_iso_recovery_iso_index() * 8;
+    int iso1 = 72 + get_alternate_iso_index() * 8;
     int iso2 = (lens_info.iso_analog_raw)/8*8;
 
     int iso_hi = MAX(iso1, iso2);
@@ -744,7 +744,7 @@ static MENU_UPDATE_FUNC(dual_iso_update)
     if (!dual_iso_hdr)
         return;
 
-    int iso1 = 72 + dual_iso_recovery_iso_index() * 8;
+    int iso1 = 72 + get_alternate_iso_index() * 8;
     int iso2 = (lens_info.iso_analog_raw)/8*8;
 
     MENU_SET_VALUE("%d/%d", raw2iso(iso2), raw2iso(iso1));
@@ -771,7 +771,7 @@ static struct menu_entry dual_iso_menu[] =
         .children =  (struct menu_entry[]) {
             {
                 .name = "Recovery ISO",
-                .priv = &dual_iso_recovery_iso,
+                .priv = &dual_iso_alternate_iso,
                 .update = dual_iso_check,
                 .min = -12,
                 .max = 6,
@@ -795,8 +795,8 @@ static struct menu_entry dual_iso_menu[] =
                 .help2 = "Highlights/shadows will be half res, with aliasing/moire.",
             },
             {
-                .name = "Alternate frames only",
-                .priv = &dual_iso_alternate,
+                .name = "Every other frame",
+                .priv = &dual_iso_every_other,
                 .max = 1,
                 .help = "Shoot one image with the hack, one without.",
             },
@@ -1043,7 +1043,7 @@ static void dual_iso_mlv_rec_cbr (uint32_t event, void *ctx, mlv_hdr_t *hdr)
     
     /* and fill with data */
     dual_iso_block->dualMode = dual_iso_is_active();
-    dual_iso_block->isoValue = dual_iso_recovery_iso;
+    dual_iso_block->isoValue = dual_iso_alternate_iso;
     
     /* finally pass it to mlv_rec which will free the block when it has been processed */
     mlv_rec_queue_block((mlv_hdr_t *)dual_iso_block);
@@ -1421,7 +1421,7 @@ MODULE_CBRS_END()
 
 MODULE_CONFIGS_START()
     MODULE_CONFIG(dual_iso_hdr)
-    MODULE_CONFIG(dual_iso_recovery_iso)
-    MODULE_CONFIG(dual_iso_alternate)
+    MODULE_CONFIG(dual_iso_alternate_iso)
+    MODULE_CONFIG(dual_iso_every_other)
     MODULE_CONFIG(dual_iso_file_prefix)
 MODULE_CONFIGS_END()

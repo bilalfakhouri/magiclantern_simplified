@@ -67,7 +67,7 @@ void raw_set_dirty(void)
 }
 
 /* dual ISO interface */
-static int (*dual_iso_get_recovery_iso)() = MODULE_FUNCTION(dual_iso_get_recovery_iso);
+static int (*dual_iso_get_alternate_iso)() = MODULE_FUNCTION(dual_iso_get_alternate_iso);
 static int (*dual_iso_get_dr_improvement)() = MODULE_FUNCTION(dual_iso_get_dr_improvement);
 
 /*********************** Camera-specific constants ****************************/
@@ -1330,7 +1330,7 @@ int raw_update_params_work()
             dbg_printf("ISO error\n");
             return 0;
         }
-        int iso2 = dual_iso_get_recovery_iso();
+        int iso2 = dual_iso_get_alternate_iso();
         if (iso2) iso = MIN(iso, iso2);
         int dr_boost = dual_iso_get_dr_improvement();
         raw_info.dynamic_range = get_dxo_dynamic_range(iso) + dr_boost;
