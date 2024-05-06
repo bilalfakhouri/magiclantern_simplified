@@ -240,10 +240,16 @@ static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* b
             start_addr = (uint32_t) local_buf + 2; /* our numbers are aligned at 16 bits, but not at 32 */
         }
 
-        // SJE FIXME this is rather ugly.  Can we use any of the sanity
-        // checks below?  Needs investigating.  Can we find appropriate
-        // CMOS_IS_BITS etc, or is the data format too different?
-        // Might want splitting into D45 / D678 paths.
+        // SJE FIXME this is rather ugly, making 200D special and skipping the function body.
+        //
+        // However, we don't want to use all the code below, it makes lots of undocumented
+        // assumptions that I don't care to test & replicate, and we don't need as many
+        // checks since we patch rom; can't get the wrong location due to heap layout.
+        //
+        // When more MMU cams are added we can find the correct place to split.
+        //
+        // We do want to do proper, per ISO patching inside the 200D function.
+        // Currently we force to 100/800.
         if (is_200d)
         {
             patch_cmos_iso_values_200d(start_addr, size, count);
@@ -320,8 +326,6 @@ static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* b
             patch_value = backup[i] & (~cmos_bits_mask);
 
             patch_value |= cmos_bits; // add the CMOS bits from our target ISO
-            // SJE FIXME convert this to use an array of patches
-            // so we get a patchset
             struct patch patch =
             {
                 .addr = (uint8_t *)(start_addr + i * size),
