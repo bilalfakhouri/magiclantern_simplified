@@ -163,9 +163,19 @@ static uint32_t CMOS_EXPECTED_FLAG = 0; // bit field, used for sanity check agai
 #define CTX_SHOOT_TASK 0
 #define CTX_SET_RECOVERY_ISO 1
 
+// Returns a small integer between 0 and max allowed by
+// ADTG control value array length, which represents
+// full stops of ISO.  0: 100, 1: 200, 2: 400, etc.
 static int get_alternate_iso_index()
 {
-    /* CHOICES("-6 EV", "-5 EV", "-4 EV", "-3 EV", "-2 EV", "-1 EV", "+1 EV", "+2 EV", "+3 EV", "+4 EV", "+5 EV", "+6 EV", "100", "200", "400", "800", "1600", "3200", "6400", "12800") */
+    // CHOICES("-6 EV", "-5 EV", "-4 EV", "-3 EV", "-2 EV", "-1 EV",
+    //         "+1 EV", "+2 EV", "+3 EV", "+4 EV", "+5 EV", "+6 EV",
+    //         "100", "200", "400", "800", "1600", "3200", "6400")
+    //
+    // The menu struct maps these to between -12 and 6, inclusive,
+    // and dual_iso_alternate_iso should be set to one of those values.
+    // Therefore, positive values are absolute ISO, else relative to
+    // the ISO Canon thinks it's using.
 
     int max_index = MAX(FRAME_CMOS_ISO_COUNT, PHOTO_CMOS_ISO_COUNT) - 1;
     
@@ -179,7 +189,16 @@ static int get_alternate_iso_index()
     if (lens_info.raw_iso == 0)
         return 0;
     
+    // map -12:-7 -> -6:-1, -6:-1 -> 1:6,
+    // that is, to number of stops different from base ISO
     int delta = dual_iso_alternate_iso < -6 ? dual_iso_alternate_iso + 6 : dual_iso_alternate_iso + 7;
+
+    // SJE FIXME stop using these magic numbers that aren't explained at all.
+    // Many refs to 72 and 8 in this code.  What's going on here is that Canon uses
+    // a value in the "lens" struct that is mapped to an ISO value.  72 means ISO 100.
+    // Full ISO stops are separated by 8.  E.g. ISO 200 is mapped to 80.
+    // Why is this held in something we call lens_info?  Unknown.
+    // Anyway, see lens.h for "codes_iso" and "values_iso", which store the mapping.
     int canon_iso_index = (lens_info.iso_analog_raw - 72) / 8;
     return COERCE(canon_iso_index + delta, 0, max_index);
 }
@@ -219,9 +238,11 @@ static void bulk_cb(uint32_t *parm, uint32_t address, uint32_t length)
     *parm = 0;
 }
 
+// Return value is non-zero for error, but errors can be positive or negative.
 static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int count)
 {
     uint32_t table_size = item_size * count;
+    int32_t result = 0;
 
     // save an alloc by getting space for both at once
     uint8_t *new_values = malloc(table_size * 2);
@@ -232,6 +253,24 @@ static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int co
     memcpy(new_values, (uint8_t *)start_addr, table_size);
     memcpy(old_values, (uint8_t *)start_addr, table_size);
 
+    uint32_t other_iso_i = get_alternate_iso_index();
+    // could use CMOS_ISO_BITS for the mask, with some shifts, like dual_iso_enable() does:
+    uint32_t other_iso_bits = *(uint32_t *)(old_values + item_size * other_iso_i) & 0x00000ff0;
+    if (other_iso_bits != 0x000
+        && other_iso_bits != 0x110
+        && other_iso_bits != 0x220
+        && other_iso_bits != 0x330
+        && other_iso_bits != 0x440
+        && other_iso_bits != 0x550
+        && other_iso_bits != 0x660)
+    {
+        // ISO values are unexpected, we don't want to patch using them
+        DryosDebugMsg(0, 15, "weird ISO bits: 0x%x", other_iso_bits);
+        DryosDebugMsg(0, 15, "from: 0x%x", (start_addr + item_size * other_iso_i));
+        result = -1;
+        goto end;
+    }
+
     for (int i = 0; i < count; i++)
     {
         // field is 0xRRR ABCD 0, middle 4 are ISO values, RRR is CMOS register
@@ -239,8 +278,24 @@ static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int co
         // 4400 or 4040 both work.  4440 results in all lines appearing the same brightness.
         // 6420 seems to make two bright, two dark.
         // So, this is not fully understood.
-        if ((*(uint32_t *)(old_values + item_size * i) & 0xfff00000) == 0x0b400000) // sanity check
-            *(uint32_t *)(new_values + item_size * i) = 0x0b444000; // 100/1600
+        // Here, we choose to use 0x00000ff0 above as the mask for our alternate ISO bits.
+        //
+        // Old cams calculate this in a slightly more generic way, using
+        // CMOS_FLAG_BITS, CMOS_ISO_BITS, and some shifting.  This is less
+        // clear, and so far this function is 200D specific, so I haven't bothered.
+
+        // We patch all full stop ISO entries: because this is what the old code does...
+        // Probably works badly with Auto ISO if it picks a non-full ISO.
+
+        uint32_t val = *(uint32_t *)(old_values + item_size * i);
+        if ((val & 0xfff00000) == 0x0b400000) // sanity check.  b4 is, apparently, the ADTG command.
+                                              // The top 4 bits are meaningful, but always 0 in the array.
+                                              // Purpose is unknown, they are non-zero in some different contexts.
+        {
+            val &= 0xfffff00f; // mask out old other ISO
+            val |= other_iso_bits; // mask in new
+            *(uint32_t *)(new_values + item_size * i) = val;
+        }
     }
     struct patch patch =
     {
@@ -252,12 +307,27 @@ static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int co
         .is_instruction = 0
     };
     // NB this won't apply patch if location is already patched
-    apply_patches(&patch, 1);
+    result = apply_patches(&patch, 1);
 
+end:
     free(new_values);
-    return 0;
+    return result;
 }
 
+// start_addr should be the address of one of the arrays of ADTG command values,
+// which encode, amongst other things, the ISO values.
+// There is a different array for photo and video.
+//
+// size is the length, in bytes, of an element in the array.
+// However, we cheat on some cams.  We only want to patch full ISO stops,
+// (I don't know why, it's just how the code worked when I got here...),
+// and some cams store 1/3 stops.  So we lie about size and make it 3x larger,
+// skipping the intermediate values.
+//
+// count is the number of items in the array.
+//
+// We don't patch all items in the array.  We only patch full stops,
+// and some cams (at least 200D), store 1/3 stops.
 static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* backup)
 {
         /* for 7D */
@@ -287,8 +357,7 @@ static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* b
         // Currently we force to 100/800.
         if (is_200d)
         {
-            patch_cmos_iso_values_200d(start_addr, size, count);
-            return 0;
+            return patch_cmos_iso_values_200d(start_addr, size, count);
         }
 
         // Get original values, used for sanity testing the address points at
@@ -309,7 +378,14 @@ static int dual_iso_enable(uint32_t start_addr, int size, int count, uint32_t* b
         int prev_iso = 0;
         for (int i = 0; i < count; i++)
         {
-            uint16_t raw = backup[i];
+            uint16_t raw = backup[i]; // NB this assumes both ISO values are encoded
+                                      // in the low 16 bits, which is not true for modern cams.
+                                      // Doesn't seem to be any point using a u16, but modern
+                                      // cams currently don't reach this code (or use "backup" at all),
+                                      // 200D returns earlier, so I'm not changing it yet.
+                                      // See comment near CMOS_ISO_BITS for some ML assumptions.
+                                      // The code below looks like it always extracts bits using
+                                      // an AND mask, so we could safely make this u32?
             uint32_t flag = raw & CMOS_FLAG_MASK;
             int iso1 = (raw >> CMOS_FLAG_BITS) & CMOS_ISO_MASK;
             int iso2 = (raw >> (CMOS_FLAG_BITS + CMOS_ISO_BITS)) & CMOS_ISO_MASK;
@@ -1272,8 +1348,9 @@ static unsigned int dual_iso_init()
     else if (is_camera("200D", "1.0.1"))
     {
         is_200d = 1;
-
-//        PHOTO_CMOS_ISO_START = get_photo_cmos_iso_start_200d(); // this returns the RAM copy
+/*
+//        PHOTO_CMOS_ISO_START = get_photo_cmos_iso_start_200d(); // this returns the RAM copy,
+//                                                                // but patching that doesn't work.  Wrong copy?
         PHOTO_CMOS_ISO_START = 0xe0aaa2fc;
         PHOTO_CMOS_ISO_COUNT = 24; // 24 is how it looks in the rom, don't know how it arrives at this.
                                    // 100-51200, with 1/3 stops in between, should be 28.
@@ -1282,13 +1359,36 @@ static unsigned int dual_iso_init()
                                    // NB, "backup" array hard-codes 20 max.  But 200D doesn't use this.
                                    // Be careful if you copy-paste this code for another cam!
         PHOTO_CMOS_ISO_SIZE  = 36;
-/*
-        //PHOTO_CMOS_ISO_START = 0xe1984538; // this is the ROM copy
-        PHOTO_CMOS_ISO_START = get_photo_cmos_iso_start_200d(); // this returns the RAM copy
-        PHOTO_CMOS_ISO_COUNT = 18; // Actually seems like 24, although that is higher than I can explain.
-                                   // Other dual-iso code hardcodes some arrays at size 20 so I limit here.
-        PHOTO_CMOS_ISO_SIZE  = 112; // 0x70
 */
+//        PHOTO_CMOS_ISO_START = 0xe1984538; // This array doesn't change stills, purpose unknown
+//        PHOTO_CMOS_ISO_SIZE = 7;
+//        PHOTO_CMOS_ISO_SIZE = 336;
+//        PHOTO_CMOS_ISO_START = 0xe19819c0; // This one doesn't change stills either
+//        PHOTO_CMOS_ISO_COUNT = 7;
+//        PHOTO_CMOS_ISO_SIZE  = 108; // 0x6c, 0x24 * 3
+        PHOTO_CMOS_ISO_START = 0xe0aaa2fc; // changes stills, not video
+        // This array starts with 0b400000, repeating that 2 times.
+        // So, ISO 100 is the base ISO twice?  From then on, it's ISO 200 3 times
+        // for all ISO up to 6400 / 0x0b466660; this one repeats 7 times.
+        // The pattern seems to be for a given base ISO, e.g. ISO 100, the +2/3
+        // is "pulled down" from ISO 200 somehow, and ISO 100 + 1/3 is "pushed up" from 100.
+        //
+        // This suggests the top 7 are 3200 + 2/3, 6400, +1/3, +2/3,
+        // then 12800, 25600, maybe 51200?  No third stops for the very high ISOs?
+        // And presumably the extra amplification above 6400 is configured elsewhere.
+
+        // ML code assumes we're only interested in full stops, and it assumes they're evenly spaced.
+
+        // So, we lie in the following values (maybe in the same way as old cams?
+        // haven't verified), and the "count" is only full stops, meaning
+        // the "size" is 3x larger than reality.  Perhaps this was always
+        // the intention, if so these are just bad names.
+        PHOTO_CMOS_ISO_COUNT = 7; // 6400, 12800, 25600 all use 0b466660,
+                                  // and maybe don't have the 1/3 stops,
+                                  // so this is probably the last one we can use,
+                                  // without understanding how the extra boost is configured.
+        PHOTO_CMOS_ISO_SIZE  = 24; // 0x18, 0x8 * 3
+
 
         FRAME_CMOS_ISO_START = 0;
         FRAME_CMOS_ISO_COUNT = 6;
