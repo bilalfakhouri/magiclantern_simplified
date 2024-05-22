@@ -126,6 +126,9 @@ volatile PROP_INT(PROP_AE_MODE_MOVIE, ae_mode_movie);
 volatile int shooting_mode;
 volatile PROP_INT(PROP_SHOOTING_MODE, shooting_mode_custom);
 
+// This triggers when the mode dial is rotated,
+// each mode (e.g. Av, Tv, P) returning a presumably
+// unique value.
 PROP_HANDLER(PROP_SHOOTING_MODE_2)
 {
     shooting_mode = buf[0];

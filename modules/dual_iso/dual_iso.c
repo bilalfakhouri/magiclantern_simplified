@@ -1389,10 +1389,17 @@ static unsigned int dual_iso_init()
                                   // without understanding how the extra boost is configured.
         PHOTO_CMOS_ISO_SIZE  = 24; // 0x18, 0x8 * 3
 
+        // The same array has 4 sets of values (or 4 contiguous arrays, more likely).
+        // +2fc changes stills, but not photo LV
+        // +3bc changes video and video LV (but not photo LV),
+        // +47c changes photo LV (but not photos), and neither vid LV nor video
+        // +53c doesn't seem to change anything...  what am I missing?
 
-        FRAME_CMOS_ISO_START = 0;
-        FRAME_CMOS_ISO_COUNT = 6;
-        FRAME_CMOS_ISO_SIZE  = 36;
+        FRAME_CMOS_ISO_START = 0xe0aaa3bc;
+        FRAME_CMOS_ISO_COUNT = 7; // SJE FIXME: as above, we are cheating here,
+                                  // skipping patching intermediate ISOs.  Does
+                                  // this matter for auto ISO video?
+        FRAME_CMOS_ISO_SIZE  = 24; // 0x18, 0x8 * 3
 
         CMOS_ISO_BITS = 8;
         CMOS_FLAG_BITS = 4;

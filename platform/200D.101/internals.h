@@ -23,6 +23,10 @@
 // has LV
 #define CONFIG_LIVEVIEW
 
+// Does the mode *dial* have movie mode?
+// 200D does not, even though it does have a dedicated switch for movie.
+#define CONFIG_NO_DEDICATED_MOVIE_MODE
+
 // enable state objects hooks
 #define CONFIG_STATE_OBJECT_HOOKS
 
