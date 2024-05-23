@@ -1043,69 +1043,6 @@ static uint32_t get_photo_cmos_iso_start_650d(void)
 
     return ram_copy_start;
 }
-// Find the RAM copy of the CMOS ISO tables.
-//
-// See get_photo_cmos_iso_start_550d for longer comments that
-// should still mostly apply here too, including comments inside
-// the function body.
-static uint32_t get_photo_cmos_iso_start_200d(void)
-{
-    uint32_t addr = 0x3e0000;
-    uint32_t max_search_addr = 0xa00000;
-
-    uint32_t rom_copy_start = 0xe1980000;
-    uint32_t ram_copy_start = 0;
-
-    // search for DMA src addr, to find our dst addr
-    for (; addr < max_search_addr; addr += 4)
-    {
-        if (*(uint32_t *)addr == rom_copy_start)
-        {
-            // A bunch of checks to give us higher confidence
-            // we found the right value.  So far, none of these
-            // have been required; the first hit is the correct
-            // one.  But these are cheap checks, and should avoid
-            // ever finding a random match on the 32-bit DMA addr value.
-
-            uint32_t *probe = (uint32_t *)addr;
-            // we expect to find 2 copies of the DMA src addr nearby
-            if (probe[0] != probe[4])
-                continue;
-            if (probe[0] != probe[5])
-                continue;
-
-            // can't test the following properly until we can apply RAM patches
-            // directly.  Doesn't work via MMU (system reads via DMA, ignoring MMU?).
-            ram_copy_start = probe[6] + 0x19c0; // not sure which this is, but not photo capture ISO table
-//            ram_copy_start = probe[6] + 0x4538; // not photo capture ISO table
-//            ram_copy_start = probe[6] + 0x4fb8; // also not photo.  We might need a combo?
-            // we expect this to be Uncacheable
-            if (ram_copy_start == (uint32_t)CACHEABLE(ram_copy_start))
-                continue;
-
-            // 200d doesn't keep the orig unaligned address
-//            if ((probe[6] & 0xfffff800) != (probe[7] & 0xfffff800))
-//                continue;
-
-            // we expect to find the original ISO value
-            if (*(uint32_t *)ram_copy_start != 0x0b400000)
-                continue;
-
-            // passed all checks, stop search
-            qprintf("Found ram_copy_start, 0x%08x: 0x%08x\n",
-                    &probe[6], ram_copy_start);
-            break;
-        }
-    }
-    if (*(uint32_t *)addr != rom_copy_start || addr >= max_search_addr)
-    {
-        qprintf("Failed to find rom_copy_start!\n");
-        printf("Failed to find r_c_s!\n");
-        return 0; // failed to find target
-    }
-
-    return ram_copy_start;
-}
 
 /* callback routine for mlv_rec to add a custom DISO block after recording started (which already was specified in mlv.h in definition phase) */
 static void dual_iso_mlv_rec_cbr (uint32_t event, void *ctx, mlv_hdr_t *hdr)
@@ -1348,24 +1285,8 @@ static unsigned int dual_iso_init()
     else if (is_camera("200D", "1.0.1"))
     {
         is_200d = 1;
-/*
-//        PHOTO_CMOS_ISO_START = get_photo_cmos_iso_start_200d(); // this returns the RAM copy,
-//                                                                // but patching that doesn't work.  Wrong copy?
-        PHOTO_CMOS_ISO_START = 0xe0aaa2fc;
-        PHOTO_CMOS_ISO_COUNT = 24; // 24 is how it looks in the rom, don't know how it arrives at this.
-                                   // 100-51200, with 1/3 stops in between, should be 28.
-                                   // Perhaps some of the higher, faker ISOs, don't have 1/3 intermediates?
-                                   //
-                                   // NB, "backup" array hard-codes 20 max.  But 200D doesn't use this.
-                                   // Be careful if you copy-paste this code for another cam!
-        PHOTO_CMOS_ISO_SIZE  = 36;
-*/
 //        PHOTO_CMOS_ISO_START = 0xe1984538; // This array doesn't change stills, purpose unknown
-//        PHOTO_CMOS_ISO_SIZE = 7;
-//        PHOTO_CMOS_ISO_SIZE = 336;
 //        PHOTO_CMOS_ISO_START = 0xe19819c0; // This one doesn't change stills either
-//        PHOTO_CMOS_ISO_COUNT = 7;
-//        PHOTO_CMOS_ISO_SIZE  = 108; // 0x6c, 0x24 * 3
         PHOTO_CMOS_ISO_START = 0xe0aaa2fc; // changes stills, not video
         // This array starts with 0b400000, repeating that 2 times.
         // So, ISO 100 is the base ISO twice?  From then on, it's ISO 200 3 times
