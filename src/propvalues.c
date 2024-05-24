@@ -220,6 +220,13 @@ PROP_HANDLER(PROP_VIDEO_MODE)
     #ifdef CONFIG_500D
     video_mode_resolution = buf[0];
     video_mode_fps = buf[1];
+    #elif defined(CONFIG_DIGIC_678X)
+    video_mode_crop = buf[0];
+    video_mode_resolution = buf[1];
+    // New cams report more precision for fps, as fps * 100.
+    // Old code assumes 2 digits only, e.g. flip_zoom_twostage()
+    // Add 50 to round up, so e.g. 29.97 gets reported as 30.
+    video_mode_fps = (buf[2] + 50) / 100;
     #else
     video_mode_crop = buf[0];
     video_mode_resolution = buf[1];
