@@ -279,11 +279,11 @@ static void fps_read_current_timer_values();
 #elif defined(CONFIG_700D)
     #define TG_FREQ_BASE 32000000 //copy from 650D
     #define FPS_TIMER_A_MIN (fps_timer_a_orig)
-#elif defined(CONFIG_750D) || defined(CONFIG_760D) || defined(CONFIG_80D)
+#elif defined(CONFIG_750D) || defined(CONFIG_760D) || defined(CONFIG_80D) || defined(CONFIG_77D)
     #define TG_FREQ_BASE 32000000 //copy from 700D
     #define FPS_TIMER_A_MIN (fps_timer_a_orig)
-#elif defined(CONFIG_200D) || defined(CONFIG_77D)
-    #define TG_FREQ_BASE 32000000 //copy from 700D
+#elif defined(CONFIG_200D)
+    #define TG_FREQ_BASE 84000000 // 84MHz from measurements of timer values, much higher than old cams
     #define FPS_TIMER_A_MIN (fps_timer_a_orig)
 #elif defined(CONFIG_6D2)
     #define TG_FREQ_BASE 32000000 //copy from 700D
@@ -316,15 +316,26 @@ static void fps_read_current_timer_values();
 #endif
 
 // these can change timer B with another method, more suitable for high FPS
+//
+// SJE: see 5D3 1.2.3 ff16d1f4(), which calls ff331324(), at ff16d2d8.
+// Compare to 200D 1.0.1, e0056364(), calling e008078c(), at e00563e4.
+//
+// The 5D3 inner func calls ff48f8c4(), 200D e008078c().
+// These use SENSOR_TIMING_TABLE global.  This func is something like
+// get_sensor_timing_from_index(uint i, uint *timing_out).
+//
+// Both top level functions have string "evfPrepareCaptureVdInterrupt[FrameNo:%d]".
 #ifdef CONFIG_600D
     #define NEW_FPS_METHOD 1
     #define SENSOR_TIMING_TABLE MEM(0xCB20)
+    #define SENSOR_TIMING_TABLE_SIZE 350
     #define VIDEO_PARAMETERS_SRC_3 0x70AE8 // notation from g3gg0
     #undef FPS_TIMER_B_MIN
     #define FPS_TIMER_B_MIN MIN(fps_timer_b_orig, 1420)
 #elif defined(CONFIG_60D)
     #define NEW_FPS_METHOD 1
     #define SENSOR_TIMING_TABLE MEM(0x2a668)
+    #define SENSOR_TIMING_TABLE_SIZE 350
     #define VIDEO_PARAMETERS_SRC_3 0x4FDA8
     #undef FPS_TIMER_B_MIN
     #define FPS_TIMER_B_MIN MIN(fps_timer_b_orig, 1420)
@@ -337,6 +348,7 @@ static void fps_read_current_timer_values();
     #undef FPS_TIMER_B_MIN
     #define FPS_TIMER_B_MIN 1050
     #define SENSOR_TIMING_TABLE MEM(0xce98)
+    #define SENSOR_TIMING_TABLE_SIZE 350
     #define VIDEO_PARAMETERS_SRC_3 0x70C0C
 #elif defined(CONFIG_5D3)
     #define NEW_FPS_METHOD 1
@@ -345,6 +357,7 @@ static void fps_read_current_timer_values();
     #else
     #define SENSOR_TIMING_TABLE MEM(0x325ac)
     #endif
+    #define SENSOR_TIMING_TABLE_SIZE 350
     //~ #define VIDEO_PARAMETERS_SRC_3 MEM(MEM(0x25FF0))
 
     #undef FPS_TIMER_A_MIN
@@ -359,7 +372,7 @@ static int fps_timer_b_method = 0;
 #endif
 #ifdef NEW_FPS_METHOD
 static uint16_t * sensor_timing_table_original = 0;
-static uint16_t sensor_timing_table_patched[175*2];
+static uint16_t sensor_timing_table_patched[SENSOR_TIMING_TABLE_SIZE];
 #endif
 
 static int calc_tg_freq(int timerA)
