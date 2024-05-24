@@ -20,6 +20,10 @@
 // Digic 7 does not have bitmap font in ROM, try to load it from card
 #define CONFIG_NO_BFNT
 
+// wanted to get raw_rec_vsync_cbr running via vsync_func,
+// for mlv_lite
+#define CONFIG_EVF_STATE_SYNC
+
 // has LV
 #define CONFIG_LIVEVIEW
 
