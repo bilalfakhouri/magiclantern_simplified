@@ -374,10 +374,10 @@ int handle_av_short_for_menu(struct event* event) {
 #ifdef FEATURE_DIGITAL_ZOOM_SHORTCUT
 PROP_INT(PROP_DIGITAL_ZOOM_RATIO, digital_zoom_ratio);
 
-int video_mode[5];
+int video_mode[10];
 PROP_HANDLER(PROP_VIDEO_MODE)
 {
-    memcpy(video_mode, buf, 20);
+    memcpy(video_mode, buf, sizeof(video_mode));
 }
 
 int disp_pressed = 0;
