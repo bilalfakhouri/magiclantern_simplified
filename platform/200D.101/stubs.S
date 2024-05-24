@@ -111,6 +111,13 @@ THUMB_FN(0xe032a8c8, get_sensor_accumh) // old name: FPS_REGISTER_A
 //THUMB_FN(0x36552, edmac_related_28_cleanup_something)
 //THUMB_FN(0x36904, edmac_related_16_register_irq_something)
 
+/** Engio **/
+//NSTUB(0x37aa4, __EngDrvOut) // func sig has changed, it's now void func(void *, void *, int val)
+                            // Looks like 1st arg is caller chosen storage, 2nd arg is MMIO addr.
+                            // Func stores val to both addresses, *and* shamem.
+//NSTUB(0xe06323e0, __engio_write) // Needs more verifying.  If this is correct, it no longer
+                           // writes to shamem, which might be annoying.
+
 /** Eventprocs (call by name) **/
 THUMB_FN(0xE04BDB8F,  call)                   /* many functions called by name (lv_start, lv_stop etc) */
 

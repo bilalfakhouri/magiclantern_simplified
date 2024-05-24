@@ -13,6 +13,8 @@
 #include <tasks.h>
 #include <edmac.h>
 
+#include "fps-engio_per_cam.h"
+
 void LoadCalendarFromRTC(struct tm *tm)
 {
     _LoadCalendarFromRTC(tm, 0, 0, 16);
@@ -91,6 +93,29 @@ void UnregisterEDmacPopCBR(int channel)
 
 void _EngDrvOut(uint32_t reg, uint32_t value)
 {
+
+// Some experimental code for fps-engio logging.
+// Note that inner __EngDrvOut sig has changed
+// (or I have the wrong stub)
+/*
+    uint32_t y_offset = 100;
+    if (reg == FPS_REGISTER_A)
+        y_offset += 0;
+    if (reg == FPS_REGISTER_B)
+        y_offset += 20;
+    if (reg == FPS_REGISTER_CONFIRM_CHANGES)
+        y_offset += 40;
+
+    if (reg == FPS_REGISTER_A
+        || reg == FPS_REGISTER_B
+        || reg == FPS_REGISTER_CONFIRM_CHANGES)
+    {
+//        uint32_t unused;
+        void __EngDrvOut(uint32_t *out, uint32_t reg, uint32_t value);
+//        __EngDrvOut(&unused, reg, value);
+        bmp_printf(FONT_MED, 100, y_offset, "e_d_o: %x, %x", reg, value);
+    }
+*/
     return;
 }
 
