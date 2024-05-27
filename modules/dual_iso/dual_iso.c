@@ -253,9 +253,12 @@ static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int co
     memcpy(new_values, (uint8_t *)start_addr, table_size);
     memcpy(old_values, (uint8_t *)start_addr, table_size);
 
+    // ISO bits are 0x000f_fff0, we will be preserving half and replacing half.
+    uint32_t iso_mask = 0x00000ff0;
+
     uint32_t other_iso_i = get_alternate_iso_index();
     // could use CMOS_ISO_BITS for the mask, with some shifts, like dual_iso_enable() does:
-    uint32_t other_iso_bits = *(uint32_t *)(old_values + item_size * other_iso_i) & 0x00000ff0;
+    uint32_t other_iso_bits = *(uint32_t *)(old_values + item_size * other_iso_i) & iso_mask;
     if (other_iso_bits != 0x000
         && other_iso_bits != 0x110
         && other_iso_bits != 0x220
@@ -292,7 +295,7 @@ static int patch_cmos_iso_values_200d(uint32_t start_addr, int item_size, int co
                                               // The top 4 bits are meaningful, but always 0 in the array.
                                               // Purpose is unknown, they are non-zero in some different contexts.
         {
-            val &= 0xfffff00f; // mask out old other ISO
+            val &= (~iso_mask); // mask out old other ISO
             val |= other_iso_bits; // mask in new
             *(uint32_t *)(new_values + item_size * i) = val;
         }
@@ -1313,10 +1316,12 @@ static unsigned int dual_iso_init()
         // The same array has 4 sets of values (or 4 contiguous arrays, more likely).
         // +2fc changes stills, but not photo LV
         // +3bc changes video and video LV (but not photo LV),
+        //      since 200D uses line skipping this doesn't work with the current
+        //      un-dual-iso code, you get odd patterns of bright/dark lines
         // +47c changes photo LV (but not photos), and neither vid LV nor video
-        // +53c doesn't seem to change anything...  what am I missing?
+        // +53c changes x5 and x10 zoom modes
 
-        FRAME_CMOS_ISO_START = 0xe0aaa3bc;
+        FRAME_CMOS_ISO_START = 0xe0aaa53c;
         FRAME_CMOS_ISO_COUNT = 7; // SJE FIXME: as above, we are cheating here,
                                   // skipping patching intermediate ISOs.  Does
                                   // this matter for auto ISO video?
