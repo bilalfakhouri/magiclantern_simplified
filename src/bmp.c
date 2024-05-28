@@ -198,14 +198,16 @@ void refresh_yuv_from_rgb(void)
     uint32_t *rgb_data = NULL;
 
     if (rgb_vram_info != NULL)
+    {
         rgb_data = (uint32_t *)rgb_vram_info->bitmap_data;
+    }
     else
     {
         DryosDebugMsg(0, 15, "rgb_vram_info was NULL, can't refresh OSD");
         return;
     }
 
-    //SJE FIXME benchmark this loop, it probably wants optimising
+#if !defined(CONFIG_INSTALLER)
     if(zebra_should_run()){
         // always draw our stuff, including full alpha
         for (size_t n = 0; n < BMP_VRAM_SIZE; n++){
@@ -214,6 +216,7 @@ void refresh_yuv_from_rgb(void)
         }
     }
     else{
+#endif
 #if defined(CONFIG_DIGIC_X) && !defined(CONFIG_COMPOSITOR_DEDICATED_LAYER)
         // kitor FIXME this is the loop altered to work with 2048x1080 layers.
         // Resolution needs confirmation on R6.
@@ -237,6 +240,7 @@ void refresh_yuv_from_rgb(void)
             rgb_row = rgb_row + BMP_LAYER_WIDTH;
         }
 #else
+        //SJE FIXME benchmark this loop, it probably wants optimising
         for (size_t n = 0; n < BMP_VRAM_SIZE; n++)
         {
             // limited alpha support, if dest pixel would be full alpha,
@@ -250,7 +254,9 @@ void refresh_yuv_from_rgb(void)
             b++;
         }
 #endif
+#if !defined(CONFIG_INSTALLER)
     }
+#endif
 
     // trigger Ximr to render to OSD from RGB buffer
 #ifdef CONFIG_DIGIC_VI
@@ -263,7 +269,13 @@ void refresh_yuv_from_rgb(void)
     ml_refresh_display_needed = 0;
 }
 
-static void refresh_yuv_from_rgb_task(void *unused)
+#if defined(CONFIG_INSTALLER)
+// Normally in tasks.c, which installer builds don't include.
+// Unused, just need it defined to build.
+int ml_shutdown_requested = 0;
+#endif
+
+void refresh_yuv_from_rgb_task(void *unused)
 {
     #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
     DryosDebugMsg(0, 15, "Canon layer: 0x%08x", rgb_vram_info);
@@ -1440,7 +1452,7 @@ void bmp_zoom(uint8_t* dst, uint8_t* src, int x0, int y0, int denx, int deny)
     }
 }
 
-void * bmp_lock = 0;
+void *bmp_lock = NULL;
 
 
 static void bmp_init(void* unused)
