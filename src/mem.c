@@ -72,7 +72,7 @@ void *__priv_shoot_malloc(size_t size)     { return _shoot_malloc(size);     }
 void  __priv_shoot_free(void *ptr)         { _shoot_free(ptr);               }
 #endif
 
-static struct semaphore *mem_sem = 0;
+static struct semaphore *mem_sem = NULL;
 
 struct mem_allocator
 {
@@ -920,6 +920,13 @@ static int choose_allocator(int size, unsigned int flags)
 /* returns 0 if it couldn't allocate */
 void* __mem_malloc(size_t size, unsigned int flags, const char *file, unsigned int line)
 {
+#if defined(CONFIG_INSTALLER)
+    // This would normally get created in init.c, my_big_init_task(),
+    // but installer.c doesn't use init.c.  If we don't create it,
+    // installer will pass null pointer to take_semaphore(), triggering crash.
+    if (mem_sem == NULL)
+        mem_sem = create_named_semaphore("mem_sem", SEM_CREATE_UNLOCKED);
+#endif
     ASSERT(mem_sem);
     take_semaphore(mem_sem, 0);
 
@@ -1066,7 +1073,8 @@ struct memSuite *shoot_malloc_suite_contig(size_t size)
 /* should be called before any mallocs */
 void _mem_init()
 {
-    mem_sem = create_named_semaphore("mem_sem", SEM_CREATE_UNLOCKED);
+    if (mem_sem == NULL)
+        mem_sem = create_named_semaphore("mem_sem", SEM_CREATE_UNLOCKED);
 
     for (int a = 0; a < COUNT(allocators); a++)
     {

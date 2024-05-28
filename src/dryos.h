@@ -115,6 +115,8 @@ create_named_semaphore(
                             // Use SEM_CREATE_LOCKED and SEM_CREATE_UNLOCKED.
 );
 
+// On D45 cams, passing in a NULL pointer is an error,
+// on modern cams, this is an OS assert so must be avoided.
 extern int
 take_semaphore(
         struct semaphore *      semaphore,
