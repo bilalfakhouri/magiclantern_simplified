@@ -378,13 +378,13 @@ clean::
 version.o: $(PLATFORM_DIR)/version.c
 
 $(PLATFORM_DIR)/version.c: FORCE
-	$(call build,"VERSION",echo "const char build_version[] = \"$(VERSION)\";") > $@
-#	@echo 'const char build_id[] = "'`hg id`'";' >> $@
-	@printf 'const char build_id[] = "' >> $@
-	$(BUILD_TOOLS_DIR)/git_summary.py >> $@
-	@echo '";' >> $@
-	@echo 'const char build_date[] ="'`$(DATE) "+%Y-%m-%d %H:%M:%S %Z"`'";' >> $@
-	@echo 'const char build_user[] = "'`whoami`@`hostname`'";'  >> $@
+	$(call build,"VERSION",echo "const char build_version[] = \"$(VERSION)\";") > $(PLATFORM_DIR)/version.tmp
+	@printf 'const char build_id[] = "' >> $(PLATFORM_DIR)/version.tmp
+	$(BUILD_TOOLS_DIR)/git_summary.py >> $(PLATFORM_DIR)/version.tmp
+	@echo '";' >> $(PLATFORM_DIR)/version.tmp
+	@echo 'const char build_date[] ="'`$(DATE) "+%Y-%m-%d %H:%M:%S %Z"`'";' >> $(PLATFORM_DIR)/version.tmp
+	@echo 'const char build_user[] = "'`whoami`@`hostname`'";'  >> $(PLATFORM_DIR)/version.tmp
+	$(MV) $(PLATFORM_DIR)/version.tmp $@
 
 # include ML version, camera, firmware, hg changeset, build date,
 # diffs from src and platform/cam directories,
