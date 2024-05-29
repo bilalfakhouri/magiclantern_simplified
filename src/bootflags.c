@@ -115,8 +115,10 @@ bootflag_write_bootblock( void )
     int ml_on_cf = (get_ml_card()->drive_letter[0] == 'A');
     extern struct cf_device ** cf_device_ptr[];
     struct cf_device * const dev = (struct cf_device *) (ml_on_cf ? cf_device_ptr[0][4] : sd_device[1]);
-#elif defined(CONFIG_R)
-    //kitor: R180 has a single pointer to device structure.
+#elif defined(CONFIG_R) || defined(CONFIG_200D)
+    // These only have one device struct.  Struct is 4 u32s,
+    // first two are function pointers.  Check the "second" device
+    // doesn't use the first two fields as function pointers.
     struct cf_device * const dev = (struct cf_device *) sd_device[0];
 #else
     struct cf_device * const dev = (struct cf_device *) sd_device[1];
@@ -203,9 +205,6 @@ bootflag_write_bootblock( void )
 
     dev->read_block( dev, 0, 1, block ); //overwrite our AAAs in our buffer with the MBR partition of the SD card.
     
-    // figure out if we are a FAT32 partitioned drive. this spells out FAT32 in chars.
-    // FAT16 not supported yet - I don't have a small enough card to test with.
-    //if( block[0x52] == 0x46 && block[0x53] == 0x41 && block[0x54] == 0x54 && block[0x55] == 0x33 && block[0x56] == 0x32 )
     if( strncmp((const char*) block + 0x52, "FAT32", 5) == 0 ) //check if this card is FAT32
     {
         dev->read_block( dev, 0, 1, block );
