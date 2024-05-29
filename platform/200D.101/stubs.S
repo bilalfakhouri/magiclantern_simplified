@@ -232,7 +232,7 @@ THUMB_FN(0xe048fc98, _turn_on_display)
 THUMB_FN(0xdf0031a3,  get_task_by_id) // called indirectly by task_create and functions using string "TASK Name"
 THUMB_FN(0xdf004041,  _get_task_info_by_id) // e023ccc7 calls this thunked func, the thunked one has right number of params for ML
 NSTUB(    0x4ea4,  dm_names) // in DebugMsg, before the 1st loop target
-NSTUB(   0x1fd7c,  sd_device) // in sdReadBlk, probably 0xe02b6fa2.  Lots of refs
+DATA_PTR(0x1fd7c,  sd_device) // in sdReadBlk, probably 0xe02b6fa2.  Lots of refs
                               // to 0x1fd7c, some to 0x1fd80
 NSTUB(    0x4838,  gui_main_struct) // See function using "Queue Clear event" string, e00c55b6
                                     // There's a base of struct, and some refs to fields via offsets.
@@ -321,7 +321,7 @@ THUMB_FN(0xdf00b51b,  ReleaseRecursiveLock)
 THUMB_FN(0xe04b1d75,  dialog_redraw) // Found via checking xrefs to "pDialog->pSignature == pcSignature"
 THUMB_FN(0xe06217f1,  ErrForCamera_handler) // ERR70, ERR80 etc (DlgErrForCamera.c, AJ_DIALOG.HANDLER_DlgErrForCamera.c)
 
-THUMB_FN(0xdf00d365,  fsuDecodePartitionTable) // SJE FIXME wrong, see notes below.
+//THUMB_FN(0xdf00d365,  fsuDecodePartitionTable) // SJE FIXME wrong, see notes below.
 //THUMB_FN(0xdf00d365,  fsuDecodePartitionTable) // this is called in one place in 50D, 0xffb0a18c, which is 0xe02b6678 on 200D.
                                                // The function called on 200D looks a lot different from fsuDecodePartitionTable, however.
                                                // Constant offsets used are the same in both, looks like fsuDPT has been partially 
