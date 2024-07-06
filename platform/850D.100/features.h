@@ -18,12 +18,9 @@
 
 // Needed for consistent ML display due to racing
 // for vram layers
-// enable XCM only in full build
-#ifndef ML_MINIMAL_OBJ
 #define CONFIG_COMPOSITOR_XCM
 #define CONFIG_COMPOSITOR_DEDICATED_LAYER
 #define CONFIG_COMPOSITOR_XCM_V2
-#endif
 
 // mostly working - task display is too crowded.
 // Maybe CPU usage should update faster?

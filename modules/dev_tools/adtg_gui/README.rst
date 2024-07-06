@@ -16,7 +16,7 @@ This is a tool for reverse engineering the meaning of ADTG/CMOS registers (low-l
 Usage 1/3
 ---------
 
-To use it, you need to set CONFIG_GDB=y in Makefile.user. There are no binaries available (and shouldn't be, for safety reasons).
+To use it, you need to set CONFIG_GDB=y for a build. There are no binaries available (and shouldn't be, for safety reasons).
 
 All intercepted registers are displayed after Canon code touches them:
 

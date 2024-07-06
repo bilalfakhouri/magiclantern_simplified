@@ -30,7 +30,7 @@
 /* Using Thumb stubs everywhere to keep things simple. */
 
 /** Startup **/
-NSTUB( ROMBASEADDR, firmware_entry )
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)
 THUMB_FN(0xe00400ec,  cstart)
 THUMB_FN(0xdf00d284,  bzero32)
 THUMB_FN(0xdf006514,  create_init_task)

@@ -160,7 +160,7 @@ static struct mmu_L2_page_info *find_L2_for_patch(struct patch *patch,
 static int apply_data_patch(struct mmu_config *mmu_conf,
                             struct patch *patch)
 {
-    uint32_t rom_base_addr = ROMBASEADDR & 0xff000000;
+    uint32_t rom_base_addr = MAIN_FIRMWARE_ADDR & 0xff000000;
     // get original rom and ram memory flags
     uint32_t flags_rom = get_l2_largepage_flags_from_l1_section(rom_base_addr, CANON_ORIG_MMU_TABLE_ADDR);
     uint32_t flags_ram = get_l2_largepage_flags_from_l1_section(0x10000000, CANON_ORIG_MMU_TABLE_ADDR);
@@ -569,7 +569,7 @@ static int apply_platform_patches(void)
 }
 
 // called via RPC only, cpu0 triggers on cpu1
-static void change_mmu_tables_cpu1(void *)
+static void change_mmu_tables_cpu1(void *unused)
 {
 
 }

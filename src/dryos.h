@@ -34,8 +34,10 @@
 #include "compiler.h"
 #include "mutex.h"
 #include "dialog.h"
+#ifndef MODULE
 #include "consts.h"
 #include "gui.h"
+#endif
 #include "gui-common.h"
 #include "vram.h"
 #include "state-object.h"
@@ -249,7 +251,6 @@ uint32_t RequestRPC (uint32_t id, void* data, uint32_t length, uint32_t cb, uint
 
 #define FAST __attribute__((optimize("-O3")))
 #define SMALL __attribute__((optimize("-Os")))
-#define DUMP_ASM __attribute__ ((section(".dump_asm")))
 
 // for modules and other optional code
 #define WEAK_FUNC(name)  __attribute__((weak,alias(#name))) 

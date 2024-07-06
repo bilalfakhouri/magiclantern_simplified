@@ -3,6 +3,9 @@
 #include <menu.h>
 #include <lens.h>
 #include <module.h>
+#include "shoot.h"
+#include "zebra.h"
+#include "beep.h"
 
 static void find_response_curve(const char* fname)
 {
@@ -36,7 +39,7 @@ static void find_response_curve(const char* fname)
         msleep(400);
         int Y,U,V;
         get_spot_yuv(180, &Y, &U, &V);
-        dot( i*5 + 40 - 16,  380 - Y*380/255 - 16, COLOR_BLUE, 3); // dot has an offset of 16px
+        fill_circle( i*5 + 40 - 16,  380 - Y*380/255 - 16, COLOR_BLUE, 3); // dot has an offset of 16px
         my_fprintf(f, "%d %d %d %d\n", i, Y, U, V);
     }
     FIO_CloseFile(f);
@@ -51,6 +54,18 @@ static void find_response_curve_ex(const char* fname, int iso, int dgain, int ht
     bmp_printf(FONT_MED, 0, 100, "ISO %d\nDGain %d\n%s", iso, dgain, htp ? "HTP" : "");
     set_htp(htp);
     msleep(100);
+
+// This old module code is broken here, because lens_set_iso() doesn't exist.
+// If you look at the possible values for "iso" being passed in, this is a human
+// format number, e.g. 400, 800, etc.
+//
+// There's lens_set_rawiso(), also called by this code, but that takes Canon
+// internal ISO values, like 81, 82 etc, see codes_iso[].
+//
+// There's raw2iso() for converting in the direction we don't need, but I can't
+// see a function that would work as iso2raw().
+// If you want this module to work, you'll probably have to dig through hg logs
+// to find out what lens_set_iso() used to be.
     lens_set_iso(iso);
     set_display_gain_equiv(dgain);
 

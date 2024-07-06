@@ -33,7 +33,7 @@
 
 #define MODULE_STRINGS_PREFIX mlv_dump_strings
 #include "../../module_strings_wrapper.h"
-#include "module_strings.h"
+#include "./build/module_strings.h"
 MODULE_STRINGS()
 #ifdef __WIN32
 #define FMT_SIZE "%u"

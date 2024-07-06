@@ -70,7 +70,7 @@ asm(
     "ANDS.W R0, R0, #3\n"       /* read the lowest 2 bits of the MPIDR register */
     "ITTT   NE\n"               /* check if CPU ID is nonzero (i.e. other cores) */
     "LDRNE  R0, rombaseaddr\n"  /* jump to main firmware if running from other cores */
-    "ORRNE  R0, R0, #1\n"       /* assuming Thumb code at ROMBASEADDR (DIGIC 7 & 8) */
+    "ORRNE  R0, R0, #1\n"       /* assuming Thumb code at MAIN_FIRMWARE_ADDR (DIGIC 7 & 8) */
     "BLXNE  R0\n"               /* not expected to return, but... */
 #endif
 
@@ -90,7 +90,7 @@ asm(
     "BX    R3\n"                    /* -> R1 (magic 0xE12FFF13) */
     ".word   autoexec_bin_footer\n" /* -> R2 (footer address) */
     "rombaseaddr:\n"
-    ".word   "STR(ROMBASEADDR)"\n"  /* -> R3 (reset address) */
+    ".word   "STR(MAIN_FIRMWARE_ADDR)"\n"  /* -> R3 (reset address) */
     
     /* embed some human-readable version info */
     /* (visible if you open autoexec.bin in e.g. Notepad or ML file manager) */
@@ -130,7 +130,7 @@ asm(
     "checksum_area:"
     ".word   _start\n"
     ".word   autoexec_bin_checksum_end\n"
-    ".word   "STR(ROMBASEADDR)"\n"
+    ".word   "STR(MAIN_FIRMWARE_ADDR)"\n"
     ".word   0x00000000\n"
 
     ".globl blob_start\n"
@@ -327,17 +327,17 @@ cstart( void )
         // Digic 8 "new style" first stage loader uses just a single pointer for startup.
         // The difference is that it has to have thumb bit set.
         // So far only 850D is known to use it on Digic 8
-        MEM(0xBFE01FC4) = ROMBASEADDR | 0x1;
+        MEM(0xBFE01FC4) = MAIN_FIRMWARE_ADDR | 0x1;
     #elif defined(CONFIG_DIGIC_X)
         // Digic X uses similar 1st stage loader to Digic 8 "new style" one.
         // Memory locations are different, it is 0xDFFxxxxx range now.
-        MEM(0xDFFC4FA0) = ROMBASEADDR | 0x1;
+        MEM(0xDFFC4FA0) = MAIN_FIRMWARE_ADDR | 0x1;
     #elif defined(CONFIG_DIGIC_VIII)
         // DIGIC 8 "older style" first stage bootloader require those two to be set.
-        // Code sets thumb bit before branch, so it can be left as ROMBASEADDR
+        // Code sets thumb bit before branch, so it can be left as MAIN_FIRMWARE_ADDR
         // M50, R, RP, 250D, M6 II, PS SX740...
         MEM(0xBFE01FC4) = 0x10;         // unknown meaning
-        MEM(0xBFE01FC8) = ROMBASEADDR;  // pointer used by 2nd core to run 2nd stage loader
+        MEM(0xBFE01FC8) = MAIN_FIRMWARE_ADDR;  // pointer used by 2nd core to run 2nd stage loader
     #endif
 
     // Newer models do it after writing 2nd core boot address
@@ -345,11 +345,11 @@ cstart( void )
     sync_caches();
 
     #if 0
-      qprint("[boot] jump to main firmware: "); qprintn(ROMBASEADDR); qprint("\n");
+      qprint("[boot] jump to main firmware: "); qprintn(MAIN_FIRMWARE_ADDR); qprint("\n");
       #if defined(CONFIG_DIGIC_78X)
-        void __attribute__((long_call)) (*main_firmware)() = (void*) (ROMBASEADDR | 1);
+        void __attribute__((long_call)) (*main_firmware)() = (void*) (MAIN_FIRMWARE_ADDR | 1);
       #else
-        void __attribute__((long_call)) (*main_firmware)() = (void*) ROMBASEADDR;
+        void __attribute__((long_call)) (*main_firmware)() = (void*) MAIN_FIRMWARE_ADDR;
       #endif
       main_firmware();
     #endif

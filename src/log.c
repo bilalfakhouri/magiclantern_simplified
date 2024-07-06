@@ -27,7 +27,7 @@ static uint32_t buf_size = 0;
 static FILE *log_fp = NULL;
 
 // periodically writes buffer to disk
-static void disk_write_task(void *)
+static void disk_write_task(void *unused)
 {
     while(!ml_shutdown_requested)
     {

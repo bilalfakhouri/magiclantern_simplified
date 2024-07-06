@@ -37,7 +37,7 @@
 
 
 /** Startup **/
-NSTUB( ROMBASEADDR, firmware_entry )
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)
 NSTUB(0xFF010894,  cstart)
 NSTUB(0xFF3EBCB8,  bzero32)                                 // called by cstart()
 NSTUB(0xFF0174E0,  create_init_task)

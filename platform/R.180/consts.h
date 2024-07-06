@@ -22,7 +22,7 @@
 #define PTR_DRYOS_BASE      0xE00401BC
 
 // Used for copying and modifying ROM code before transferring control.
-// Approximately: look at BR_ macros for the highest address, subtract ROMBASEADDR,
+// Approximately: look at BR_ macros for the highest address, subtract MAIN_FIRMWARE_ADDR,
 // align up.  This may not be exactly enough.  See boot-d678.c for longer explanation.
 #define FIRMWARE_ENTRY_LEN 0x228
 

@@ -85,7 +85,7 @@ static void dump_bytes(uint32_t address, uint32_t len)
     }
 }
 
-static void DUMP_ASM dump_task()
+static void dump_task()
 {
     // LED blinking test
     led_blink(30, 500, 200);

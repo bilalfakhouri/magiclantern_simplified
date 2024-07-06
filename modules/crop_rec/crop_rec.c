@@ -235,6 +235,8 @@ static inline void FAST calc_skip_offsets(int * p_skip_left, int * p_skip_right,
         case CROP_PRESET_3x3_1X_48p:
             if (is_720p()) skip_top = 0;
             break;
+        default:
+            break;
     }
 
     if (p_skip_left)   *p_skip_left    = skip_left;
@@ -530,6 +532,8 @@ static void FAST cmos_hook(uint32_t* regs, uint32_t* stack, uint32_t pc)
                 cmos_new[1] = PACK12(9+2,42+1); /* vertical (first|last) */
                 cmos_new[2] = 0x09E;            /* horizontal offset (mask 0xFF0) */
                 break;
+            default:
+                break;
         }
     }
 
@@ -541,6 +545,8 @@ static void FAST cmos_hook(uint32_t* regs, uint32_t* stack, uint32_t pc)
                 /* start/stop scanning line, very large increments */
                 cmos_new[7] = (is_6D) ? PACK12(37,10) : PACK12(6,29);
                 break;            
+            default:
+                break;
         }
     }
 
@@ -818,6 +824,8 @@ static void FAST adtg_hook(uint32_t* regs, uint32_t* stack, uint32_t pc)
                     adtg_new[3] = (struct adtg_new) {2, 0x8806, 0x6088};
                 }
                 break;
+            default:
+                break;
         }
 
         /* PowerSaveTiming & ReadOutTiming registers */
@@ -857,6 +865,8 @@ static void FAST adtg_hook(uint32_t* regs, uint32_t* stack, uint32_t pc)
                 adtg_new[12] = (struct adtg_new) {6, 0x82F9, nrzi_encode(fps_timer_b - 1) }; /* ReadOutTiming end? */
                 break;
             }
+            default:
+                break;
         }
     }
 
@@ -1760,6 +1770,8 @@ static LVINFO_UPDATE_FUNC(crop_info)
                 case CROP_PRESET_CENTER_Z:
                     snprintf(buffer, sizeof(buffer), "3.5K");
                     break;
+                default:
+                    break;
             }
         }
         else
@@ -1802,6 +1814,8 @@ static LVINFO_UPDATE_FUNC(crop_info)
 
                 case CROP_PRESET_FULLRES_LV:
                     snprintf(buffer, sizeof(buffer), "FLV");
+                    break;
+                default:
                     break;
             }
         }
@@ -1881,6 +1895,8 @@ static unsigned int raw_info_update_cbr(unsigned int unused)
             case CROP_PRESET_1x3:
                 raw_capture_info.binning_x = 3; raw_capture_info.skipping_x = 0;
                 break;
+            default:
+                break;
         }
 
         /* update vertical pixel binning / line skipping parameters */
@@ -1905,6 +1921,8 @@ static unsigned int raw_info_update_cbr(unsigned int unused)
                 raw_capture_info.binning_y = b; raw_capture_info.skipping_y = s;
                 break;
             }
+            default:
+                break;
         }
 
         if (is_5D3)

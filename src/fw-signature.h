@@ -3,7 +3,7 @@
 
 #include <config-defines.h>
 
-#define SIG_START ROMBASEADDR
+#define SIG_START MAIN_FIRMWARE_ADDR
 #define SIG_LEN 0x10000
 
 #define SIG_60D_111  0xaf91b602 // from FF010000

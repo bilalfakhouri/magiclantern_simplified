@@ -50,14 +50,14 @@ That copy happens here:
 
 blob\_start and blob\_end are addresses that cover a region in autoexec.bin.  The build system places "magiclantern.bin" in this region, which is a stripped version of "magiclantern" - which is a normal ELF binary.  This allows us to have a compact representation in the limited camera memory, while having a relatively normal build process, with usable debug symbols.
 
-We then do a small amount of hardware specific initialisation, found via reverse engineering normal DryOS startup.  Finally, autoexec.bin transfers control to RESTARTSTART; the address in mem of our copied magiclantern.bin.  RESTARTSTART is defined in platform/XXXD.YYY/Makefile.platform.default.  It's used in src/magiclantern.lds.S when linking magiclantern.
+We then do a small amount of hardware specific initialisation, found via reverse engineering normal DryOS startup.  Finally, autoexec.bin transfers control to RESTARTSTART; the address in mem of our copied magiclantern.bin.  RESTARTSTART is defined in platform/XXXD.YYY/Makefile.  It's used in src/magiclantern.lds.S when linking magiclantern.
 
 Which code is at the start of magiclantern.bin and therefore called as RESTARTSTART is defined by entry.S - a function called copy\_and\_restart().  We're now running from the new location and the copy of autoexec.bin at 0x80\_0000 is no longer needed.
 
 There are multiple source files containing a copy\_and\_restart() function, but only one is used per cam.  Selection occurs as part of the per platform config, e.g.:
 
 ```
-    platform/60D.111/Makefile.platform.default:ML_BOOT_OBJ   = boot-d45-ch.o
+    platform/60D.111/Makefile:ML_BOOT_OBJ   = boot-d45-ch.o
 ```
 
 Therefore for 60D, boot-d45-ch.c will be used.  The code is split like this as there are multiple different ways to reserve space for ML, depending on memory layout and physical capabilities of a cam.
@@ -66,7 +66,7 @@ copy\_and\_restart() has the job of making a copy of Canon's early init code in 
 
 The precise modifications vary a little per cam, but the common idea is that DryOS initialisation uses pointers to various functions and data structures; we have substituted our own.  Part of this ensures that the memory region we copied magiclantern.bin to is outside of the memory DryOS will use - we tell the OS it has a smaller region to work with, and ML fits inside the "missing" memory.
 
-If you look at this code you may see the name ROMBASEADDR.  It's worth noting this is a misleading name.  It's nothing to do with the base address of the rom, it is in fact the start address of the main firmware; the code after the bootloader, responsible for bringing up the OS.
+If you look at this code you may see the name ROMBASEADDR.  It's worth noting this is a misleading name.  It's nothing to do with the base address of the rom, it is in fact the start address of the main firmware; the code after the bootloader, responsible for bringing up the OS.  While this has been renamed to MAIN_FIRMWARE_ADDR, some references may remain.
 
 We've got out of the bootloader!  Things are simpler from now on.
 

@@ -196,7 +196,7 @@
 #define PTR_DRYOS_BASE              0xe00401b4
 
 // Used for copying and modifying ROM code before transferring control.
-// Look in BR_ macros for the highest address, subtract ROMBASEADDR, align up.
+// Look in BR_ macros for the highest address, subtract MAIN_FIRMWARE_ADDR, align up.
 #define FIRMWARE_ENTRY_LEN 0x1000
 
 //address of XimrContext structure to redraw in FEATURE_VRAM_RGBA

@@ -4,6 +4,8 @@
 #include <bmp.h>
 #include <menu.h>
 #include <mem.h>
+#include "beep.h"
+#include "util.h"
 
 /* variables used for simple thread communication */
 static uint32_t mem_chk_errors = 0;
@@ -240,8 +242,8 @@ MODULE_INFO_END()
 MODULE_CBRS_START()
 MODULE_CBRS_END()
 
-MODULE_PARAMS_START()
-MODULE_PARAMS_END()
+//MODULE_PARAMS_START()
+//MODULE_PARAMS_END()
 
 MODULE_PROPHANDLERS_START()
 MODULE_PROPHANDLERS_END()

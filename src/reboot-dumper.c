@@ -471,7 +471,6 @@ static void led_dump(uint32_t address, uint32_t length)
 
 void
 __attribute__((noreturn))
-__attribute__ ((section(".dump_asm")))
 cstart( void )
 {
     /* Try guessing the LED address */

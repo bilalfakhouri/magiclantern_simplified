@@ -95,7 +95,7 @@ static void backup_region(char *file, uint32_t base, uint32_t length)
     free(buf);
 }
 
-static void DUMP_ASM dump_task()
+static void dump_task()
 {
     uart_printf("Hello from %s!\n", get_current_task_name());
 

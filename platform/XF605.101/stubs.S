@@ -31,7 +31,7 @@
 
 
 /** Startup **/
-NSTUB(  ROMBASEADDR,  firmware_entry)           // also known as 2nd stage loader, boot2 or DryOS loader
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)           // also known as 2nd stage loader, boot2 or DryOS loader
 THUMB_FN(0xe01003f0,  dcache_clean)             // call from firmware_entry(); in assembly: loop with MCR p15 c7,c10,1; DSB
 THUMB_FN(0xe01004c4,  icache_invalidate)        // call from firmware_entry(); in assembly: loop with MCR p15 c7,c5,1; c7,c1,6; c7,c1,0; ISB
 // This is the "real" cstart addr, in that DryOS runs code from there.

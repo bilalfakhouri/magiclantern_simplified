@@ -1,4 +1,6 @@
-#define CONFIG_CONSOLE
+#ifndef CONFIG_CONSOLE
+    #define CONFIG_CONSOLE
+#endif
 #define _file_man_c_
 
 #include <module.h>

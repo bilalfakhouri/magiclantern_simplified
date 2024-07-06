@@ -1,8 +1,31 @@
-#Makefile for 5D Mark III
+MODEL = 5D3
+FW_VERSION = 123
 
-MODEL=5D3
-FW_VERSION=123
+TOP_DIR = ../..
+PLATFORM_DIR = .
 
-include ../Makefile.platform
+AUTOEXEC_BASE = 0x800000
+FIR_BASE = 0x800120
+ML_BOOT_OBJ = boot-d45.o
 
-#x: clean build_fir
+ifeq ($(FW_VERSION),123)
+CANON_NAME_FIR = 5D300133.FIR
+
+MAIN_FIRMWARE_ADDR = 0xFF0C0000
+PLATFORM_ARCH = armv5te
+
+# DryOSmemory map
+# RESTARTSTART is selected to be just above the end of the bss
+#
+RESTARTSTART = 0x69500
+
+#End of FW_VERSION == 123
+endif
+
+ML_BITRATE_OBJ = bitrate-5d3.o
+ML_AF_PATTERNS_OBJ = n
+
+ML_SRC_EXTRA_OBJS = $(BUILD_DIR)/video_hacks.o $(BUILD_DIR)/afma.o $(BUILD_DIR)/asm.o
+
+include ../Makefile
+.DEFAULT_GOAL := $(BUILD_DIR)/cam_complete

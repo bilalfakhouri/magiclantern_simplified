@@ -140,6 +140,7 @@ static struct menu_entry help_menus[] = {
         .name = "Key Shortcuts",
         .select = menu_help_go_to_label,
     },
+#if 0 // disable old, broken help system
     {
         .name = "Complete user guide",
         .select = menu_open_submenu,
@@ -148,10 +149,14 @@ static struct menu_entry help_menus[] = {
             MENU_EOL
         },
     },
+#endif
+#if 0 // disable menu that always says there's no help files
+      // FIXME: turn this into a generic about ML page
     {
         .name = "About Magic Lantern",
         .select = menu_help_go_to_label,
     },
+#endif
 };
 
 static void

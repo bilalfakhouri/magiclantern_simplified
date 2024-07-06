@@ -22,7 +22,7 @@
  *   (see buffering strategy; I believe it's close to optimal, though I have no idea how to write a mathematical proof for it)
  *
  * Usage:
- * - enable modules in Makefile.user (CONFIG_MODULES = y, CONFIG_TCC = y, CONFIG_PICOC = n, CONFIG_CONSOLE = y)
+ * - enable modules (CONFIG_MODULES = y, CONFIG_TCC = y, CONFIG_PICOC = n, CONFIG_CONSOLE = y)
  * - run "make" from modules/raw_rec to compile this module and the DNG converter
  * - run "make install" from platform dir to copy the modules on the card
  * - from Module menu: Load modules now

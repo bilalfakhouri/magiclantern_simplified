@@ -18,13 +18,13 @@ class Module:
         # or file_man
         #
         # We expect these files to exist:
-        # modules/raw_video/mlv_lite/mlv_lite.mo
-        # modules/raw_video/mlv_lite/mlv_lite.dep
-        # modules/raw_video/mlv_lite/mlv_lite.sym
+        # modules/raw_video/mlv_lite/build/mlv_lite.mo
+        # modules/raw_video/mlv_lite/build/mlv_lite.dep
+        # modules/raw_video/mlv_lite/build/mlv_lite.sym
         module_name = os.path.split(name)[1]
-        self.mo_file = os.path.join(name, module_name + ".mo")
-        self.dep_file = os.path.join(name, module_name + ".dep")
-        self.sym_file = os.path.join(name, module_name + ".sym")
+        self.mo_file = os.path.join(name, "build", module_name + ".mo")
+        self.dep_file = os.path.join(name, "build", module_name + ".dep")
+        self.sym_file = os.path.join(name, "build", module_name + ".sym")
         self.name = module_name
         #self.required_mods = None # deliberately not set, so we can easily
                                    # distinguish between empty and not-initialised

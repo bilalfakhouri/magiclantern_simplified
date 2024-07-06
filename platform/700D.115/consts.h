@@ -17,7 +17,7 @@
 #define HIJACK_TASK_ADDR 0x233DC
 
 // Used for copying and modifying ROM code before transferring control.
-// Look in HIJACK macros for the highest address, subtract ROMBASEADDR, align up.
+// Look in HIJACK macros for the highest address, subtract MAIN_FIRMWARE_ADDR, align up.
 #define FIRMWARE_ENTRY_LEN 0x3000
 
 /*

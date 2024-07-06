@@ -16,7 +16,7 @@
 #define HIJACK_TASK_ADDR 0x1A74
 
 // Used for copying and modifying ROM code before transferring control.
-// Look in HIJACK macros for the highest address, subtract ROMBASEADDR, align up.
+// Look in HIJACK macros for the highest address, subtract MAIN_FIRMWARE_ADDR, align up.
 #define FIRMWARE_ENTRY_LEN 0x3000
 
 #define ARMLIB_OVERFLOWING_BUFFER 0x244c0 // in AJ_armlib_setup_related3

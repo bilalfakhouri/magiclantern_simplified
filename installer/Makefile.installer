@@ -8,9 +8,8 @@ include $(TOP_DIR)/platform/Makefile.platform.base
 
 installer:: build_fir
 
-install:: build_fir install_prepare
+zip_contents:: build_fir
 	$(CP) $(UPDATE_NAME_FIR) $(INSTALL_DIR)/
-	$(INSTALL_FINISH)
 
 clean::
 	$(call rm_files, *.fir *.FIR)

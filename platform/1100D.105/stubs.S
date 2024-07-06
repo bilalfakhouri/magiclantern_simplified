@@ -33,7 +33,7 @@
 
 
 /** Startup **/
-NSTUB( ROMBASEADDR, firmware_entry )       //0xff010000
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)       //0xff010000
 NSTUB(0xFF011028,  cstart)                                  // might be good (dumps=1, score=1.6)
 NSTUB(0xFF530984,  bzero32)                                 // might be good (dumps=1, score=1.5e+02)
 NSTUB(0xFF017F80,  create_init_task)                        // might be good (dumps=1, score=3.1)

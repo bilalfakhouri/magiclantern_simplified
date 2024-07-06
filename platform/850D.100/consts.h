@@ -15,7 +15,7 @@
 #define BR_CREATE_ITASK   0xe00401b4  // called from cstart
 
 // Used for copying and modifying ROM code before transferring control.
-// Look in BR_ macros for the highest address, subtract ROMBASEADDR, align up.
+// Look in BR_ macros for the highest address, subtract MAIN_FIRMWARE_ADDR, align up.
 // On 850D there is an extra call, the code of which is after cstart, so we must
 // also ensure this is covered.
 #define FIRMWARE_ENTRY_LEN 0x1000

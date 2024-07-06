@@ -70,7 +70,7 @@
 #include "hash_password.h"
 
 #include "../trace/trace.h"
-#include "../ime_base/ime_base.h"
+#include "../input/ime_base/ime_base.h"
 
 uint32_t iocrypt_trace_ctx = TRACE_ERROR;
 

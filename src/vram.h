@@ -24,7 +24,9 @@
  * Boston, MA  02110-1301, USA.
  */
 
+#ifndef MODULE
 #include "internals.h"
+#endif
 #include "internals-common.h"
 #include "compiler.h"
 

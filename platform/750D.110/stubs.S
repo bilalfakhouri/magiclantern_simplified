@@ -30,7 +30,7 @@
 /* Warning: there are some ARM32 stubs, not only thumb! */
 
 /** Startup **/
-NSTUB(  ROMBASEADDR,  firmware_entry)
+NSTUB(MAIN_FIRMWARE_ADDR,  firmware_entry)
 THUMB_FN(0xfe0ccfcc,  pre_cstart_func) // needed to easily patch for compacting firmware_entry and cstart regions
 THUMB_FN(0xfe0ccfec,  cstart)                               // calls bzero32 and create_init_task(..., init_task, ...)
 ARM32_FN(0x800072c0,  bzero32)                              // zeros out a data structure

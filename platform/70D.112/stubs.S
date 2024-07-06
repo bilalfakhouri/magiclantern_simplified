@@ -31,7 +31,7 @@
 //#define RAM_OFFSET 0xFFD4B518                               // (0xFFD4CE18-0x1900)
 
 /** Startup **/
-NSTUB( ROMBASEADDR, firmware_entry )
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)
 NSTUB(0xFF0C1BA8,  cstart)
 NSTUB(   0x71618,  bzero32)
 NSTUB(    0x3168,  create_init_task)

@@ -41,7 +41,7 @@ static void mem_benchmark_check(void *dst, void *src, int size, int x, int y)
     );
 }
 
-static uint64_t FAST DUMP_ASM mem_test_read64(uint64_t *buf, uint32_t n)
+static uint64_t FAST mem_test_read64(uint64_t *buf, uint32_t n)
 {
     register uint64_t tmp = 0;
     for (uint32_t i = 0; i < n/8; i++)
@@ -49,7 +49,7 @@ static uint64_t FAST DUMP_ASM mem_test_read64(uint64_t *buf, uint32_t n)
     return tmp;
 }
 
-static uint32_t FAST DUMP_ASM mem_test_read32(uint32_t *buf, uint32_t n)
+static uint32_t FAST mem_test_read32(uint32_t *buf, uint32_t n)
 {
     register uint32_t tmp = 0;
     for (uint32_t i = 0; i < n/4; i++)

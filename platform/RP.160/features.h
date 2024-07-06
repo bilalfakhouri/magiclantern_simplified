@@ -1,11 +1,8 @@
 #define FEATURE_VRAM_RGBA
 
-//enable XCM only in full build
-#ifndef ML_MINIMAL_OBJ
 #define CONFIG_COMPOSITOR_XCM
 #define CONFIG_COMPOSITOR_DEDICATED_LAYER
 #define CONFIG_COMPOSITOR_XCM_V2
-#endif
 
 #define FEATURE_SHOW_SHUTTER_COUNT
 

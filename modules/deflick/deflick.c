@@ -8,7 +8,6 @@
 #include "menu.h"
 #include "property.h"
 #include "lens.h"
-#include "gui.h"
 #include "math.h"
 #include "raw.h"
 #include "histogram.h"

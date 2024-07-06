@@ -59,10 +59,6 @@ def parse_args():
 
     cam_dir = os.path.join(dest_dir, "..", "..", "..")
     if "magiclantern.sym" not in os.listdir(cam_dir):
-        # This happens for ML_SRC_PROFILE = minimal builds.
-        # SJE TODO: make minimal builds not try to copy modules?
-        # For now, we simply don't try.  This might cause problems
-        # if a cam dir should produce the sym file but failed to do so?
         print("No magiclantern.sym in cam dir, can't include modules: '%s'"
               % dest_dir)
         sys.exit(0)

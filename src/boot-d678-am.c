@@ -65,7 +65,7 @@ static uint32_t reloc_addr(uint32_t addr)
         return RELOCADDR + (addr - ((uint32_t)cstart & 0xfffffffe)) + FIRMWARE_ENTRY_LEN;
     }
 #endif
-    return RELOCADDR + addr - ROMBASEADDR;
+    return RELOCADDR + addr - MAIN_FIRMWARE_ADDR;
 }
 
 static void patch_thumb_branch(uint32_t pc, uint32_t dest)
@@ -236,7 +236,7 @@ copy_and_restart(int offset)
     zero_bss();
 
     // Copy the firmware to somewhere safe in memory
-    const uint8_t *const firmware_start = (void *)ROMBASEADDR;
+    const uint8_t *const firmware_start = (void *)MAIN_FIRMWARE_ADDR;
     const uint32_t firmware_len = FIRMWARE_ENTRY_LEN;
     uint8_t *const new_image = (void *)RELOCADDR;
 

@@ -77,7 +77,7 @@ def get_command_of(commands):
     print("", file=sys.stderr)
     exit(1)
 
-inp = open("README.rst").read().replace("\r\n", "\n")
+inp = open("build/README.rst").read().replace("\r\n", "\n")
 lines = inp.strip("\n").split("\n")
 title = lines[0]
 
@@ -134,7 +134,7 @@ if not os.path.isfile(HTML2TEXT_PATH):
 #
 # render the RST as html -> txt without the metadata tags
 # sed command at end is because Windows inserts CR characters all over the place. Removing them should be benign on other platforms. 
-txt = run('cat README.rst | grep -v -E "^:([^:])+:.+$" | ' + rst2htmlCommand
+txt = run('cat build/README.rst | grep -v -E "^:([^:])+:.+$" | ' + rst2htmlCommand
           + ' | python3 ' + HTML2TEXT_PATH + ' -b 700 | sed "s/\r$//"')
 
 desc = ""

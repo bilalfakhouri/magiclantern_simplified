@@ -35,8 +35,10 @@ asm(
 #include <limits.h>
 #include <sys/types.h>
 #include "compiler.h"
-#include "internals.h"  /* from platform directory (for CONFIG_DIGIC_VI) */
 #include "mutex.h"
+#ifndef MODULE
+#include "internals.h"  /* from platform directory (for CONFIG_DIGIC_VI) */
+#endif // MODULE
 
 typedef void (*thunk)(void);
 

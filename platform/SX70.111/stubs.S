@@ -31,7 +31,7 @@
 
 
 /** Startup **/
-NSTUB(  ROMBASEADDR,  firmware_entry)
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)
 THUMB_FN(0xE0040104,  cstart)                               /* calls bzero32 and create_init_task(..., init_task, ...) */
 THUMB_FN(0xE05338A8,  bzero32)                              /* zeros out a data structure */
 THUMB_FN(0xE01729DC,  create_init_task)                     /* low-level DryOS initialization */

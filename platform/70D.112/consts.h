@@ -23,7 +23,7 @@
 #define HIJACK_INSTR_MY_ITASK 0xFF0C1C6C
 
 // Used for copying and modifying ROM code before transferring control.
-// Look in HIJACK macros for the highest address, subtract ROMBASEADDR, align up.
+// Look in HIJACK macros for the highest address, subtract MAIN_FIRMWARE_ADDR, align up.
 #define FIRMWARE_ENTRY_LEN 0x3000
 
 // Used in boot-hack.c with CONFIG_ALLOCATE_MEMORY_POOL

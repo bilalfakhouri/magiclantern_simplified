@@ -1260,7 +1260,7 @@ static volatile int switched_contexts[2];
 /* define this to test the behavior of DryOS tasks with identical priority */
 #undef TEST_EQUAL_PRIO
 
-static void DUMP_ASM test_loop(void (*func)(int))
+static void test_loop(void (*func)(int))
 {
     tests_running++;
     int id = get_current_task_name()[0] - 'A';

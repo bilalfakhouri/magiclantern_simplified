@@ -33,7 +33,7 @@
 #include "qsort.h"  /* much faster than standard C qsort */
 #include "../dual_iso/optmed.h"
 #include "../dual_iso/wirth.h"
-#include "../mlv_rec/mlv.h"
+#include "../raw_video/mlv_rec/mlv.h"
 
 
 /* useful to clean pink dots, may also help with color aliasing, but it's best turned off if you don't have these problems */

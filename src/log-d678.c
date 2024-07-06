@@ -23,7 +23,7 @@ extern void _FreeMemory(void *);
 
 /* override Canon's DebugMsg to save all messages */
 /* DIGIC 7/8: this runs on both CPU cores */
-static void DUMP_ASM my_DebugMsg(int class, int level, char* fmt, ...)
+static void my_DebugMsg(int class, int level, char* fmt, ...)
 {
     uintptr_t lr = read_lr();
 

@@ -29,7 +29,7 @@
 
 
 /** Startup **/
-NSTUB( ROMBASEADDR, firmware_entry )
+NSTUB(MAIN_FIRMWARE_ADDR, firmware_entry)
 THUMB_FN(0xfe0ee2dc,  pre_cstart_func) // needed to easily patch for compacting firmware_entry and cstart regions
 THUMB_FN(0xFE0EE2FC,  cstart)
 ARM32_FN(0xFE3F4470,  bzero32)
