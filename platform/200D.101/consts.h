@@ -184,6 +184,13 @@
 #define PTR_INIT1_TASK      0xe00403a8 // pointer to address of init1_task
                                        // used for create_task_ex() call by cpu0 (0xe0040221)
 
+// These override the values in installer.c, used for backing up rom.
+// These particular values are just examples; the defaults are fine for 200D.
+#define ROM0_ADDR 0xe0000000
+#define ROM0_SIZE 0x2000000
+#define ROM1_ADDR 0xf0000000
+#define ROM1_SIZE 0x1000000
+
 #define CANON_ORIG_MMU_TABLE_ADDR 0xe0000000 // Yes, this is the rom start, yes, there is code there.
                                              // I assume ARM MMU alignment magic means this is okay,
                                              // presumably the tables themselves don't use the early part.

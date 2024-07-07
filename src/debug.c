@@ -22,6 +22,7 @@
 #include "fw-signature.h"
 #include "lvinfo.h"
 #include "raw.h"
+#include "rom_values.h"
 
 #ifdef CONFIG_DEBUG_INTERCEPT
 #include "dm-spy.h"
@@ -129,35 +130,28 @@ static void dump_rom_task(void* priv, int unused)
     FILE * f = NULL;
 
 // Digic 6 doesn't have ROM0
-#if defined(CONFIG_DIGIC_45) || defined(CONFIG_DIGIC_78X)
+#if defined(ROM0_SIZE) && (ROM0_SIZE != 0)
+    // this skips D6 by default, which we've never seen with ROM0
     f = FIO_CreateFile("ML/LOGS/ROM0.BIN");
     if (f)
     {
         bmp_printf(FONT_LARGE, 0, 60, "Writing ROM0");
-    #if defined(CONFIG_DIGIC_45)
-        FIO_WriteFile(f, (void*) 0xF0000000, 0x01000000);
-    #elif defined(CONFIG_DIGIC_78X)
-        FIO_WriteFile(f, (void*) 0xE0000000, 0x04000000); // max seen so far
-    #endif
+        FIO_WriteFile(f, (void*)ROM0_ADDR, ROM0_SIZE);
         FIO_CloseFile(f);
     }
     msleep(200);
 #endif
 
+#if defined(ROM1_SIZE) && (ROM1_SIZE != 0)
     f = FIO_CreateFile("ML/LOGS/ROM1.BIN");
     if (f)
     {
         bmp_printf(FONT_LARGE, 0, 60, "Writing ROM1");
-    #if defined(CONFIG_DIGIC_45)
-        FIO_WriteFile(f, (void*) 0xF8000000, 0x01000000);
-    #elif defined(CONFIG_DIGIC_6)
-        FIO_WriteFile(f, (void*) 0xFE000000, 0x02000000);
-    #elif defined(CONFIG_DIGIC_78X)
-        FIO_WriteFile(f, (void*) 0xF0000000, 0x02000000); // max seen so far
-    #endif
+        FIO_WriteFile(f, (void*)ROM1_ADDR, ROM1_SIZE);
         FIO_CloseFile(f);
     }
     msleep(200);
+#endif
 
     dump_big_seg(4, "ML/LOGS/RAM4.BIN");
 }
