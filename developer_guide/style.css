@@ -24,20 +24,20 @@ h1 {
     text-align: center;
 }
 
-/* for changing background of code blocks */
+/* for changing background of code blocks, triple backticks */
 pre {
     background-color: LightGray;
     font-family: 'DejaVuMono', monospace;
     line-height: 1.2em;
+    display: inline-block;
     font-size: xx-small;
 }
 
-/* you'd think things in here would apply
-   to code blocks, but they don't seem to,
-   whereas pre does.
+/* for changing background of inline code, single backticks */
 code {
+    background-color: LightGray;
+    font-family: 'DejaVuMono', monospace;
 }
-*/
 
 img.wide {
     width: 90%;
