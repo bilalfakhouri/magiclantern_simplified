@@ -494,6 +494,13 @@ LFLAGS = \
         -u expf \
         -u memchr \
         -u frexpf
+
+# Force including software division library code even on ARMv7-R, which
+# always has hardware division.  Modules need these since they're
+# built for lowest-common-denominator ARMv5.  -R magiclantern still
+# uses efficient hw division, it just includes the code for sw div.
+LFLAGS += -u __aeabi_idiv -u __aeabi_idivmod
+
 ML_LIBC = $(BUILD_DIR)/dietlibc.a \
           $(BUILD_DIR)/newlib-libc.a \
           $(BUILD_DIR)/newlib-libm.a \
