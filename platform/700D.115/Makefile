@@ -2,7 +2,6 @@ MODEL = 700D
 FW_VERSION = 115
 
 TOP_DIR = ../..
-PLATFORM_DIR = .
 
 ML_BOOT_OBJ = boot-d45.o
 

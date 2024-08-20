@@ -27,7 +27,6 @@ CFLAGS_PLATFORM += -mthumb -mlong-calls
 ML_SRC_EXTRA_OBJS += $(BUILD_DIR)/function_overrides.o
 
 TOP_DIR = ../..
-PLATFORM_DIR = .
 
 include ../Makefile
 .DEFAULT_GOAL := $(BUILD_DIR)/cam_complete

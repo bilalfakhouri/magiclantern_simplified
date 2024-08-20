@@ -36,7 +36,6 @@ $(PLATFORM_INSTALL_ALL_TARGETS):
 	$(call call_make_platform)
 
 TOP_DIR = ../..
-PLATFORM_DIR = .
 
 AUTOEXEC_BASE = 0x800000
 FIR_BASE = 0x800120
