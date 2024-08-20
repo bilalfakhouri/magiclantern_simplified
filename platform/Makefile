@@ -1,8 +1,3 @@
-MAKEFLAGS += --warn-undefined-variables
-# This flag seems unreliable as crap, but it's the best
-# we can do until 2025 or whatever when they finally put
-# in an error for usage of undefined vars
-
 # This makefile can be used directly, to build zips for all the default enabled cams,
 # or invoked by platform/99D/Makefile to build one for one cam (including non-default).
 TOP_DIR ?= ..

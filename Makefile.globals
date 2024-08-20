@@ -1,8 +1,3 @@
-MAKEFLAGS += --warn-undefined-variables
-# There's no error option available, which is, of course, insanity.
-# It may become available:
-# https://savannah.gnu.org/bugs/?63686
-
 # This file gets included by platform (cam) builds
 # and module builds.
 #
