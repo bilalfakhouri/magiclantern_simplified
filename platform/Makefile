@@ -566,7 +566,7 @@ $(BUILD_DIR)/magiclantern.lds: $(SRC_DIR)/magiclantern.lds.S | $(BUILD_DIR)
 	$(MV) $(BUILD_DIR)/magiclantern.lds.tmp $@
 
 $(BUILD_DIR)/magiclantern: $(ML_LD_SCRIPT) $(ML_ENTRY_OBJ) $(ML_OBJS) $(ML_LIBC) | $(BUILD_DIR)
-	$(LD) -o $@ -N $(LFLAGS) -T $^ $(INCLUDE_ARGS) -Map=$(BUILD_DIR)/location.map
+	$(LD) -o $@ -N $(LFLAGS) -T $^ -Map=$(BUILD_DIR)/location.map
 
 $(BUILD_DIR)/magiclantern.bin: $(BUILD_DIR)/magiclantern | $(BUILD_DIR)
 	$(OBJCOPY) -O binary $< $@
