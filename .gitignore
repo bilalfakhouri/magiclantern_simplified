@@ -4,9 +4,6 @@ syntax: glob
 *.qcow2
 *.bin
 *.elf
-*.o
-*.d
-*.a
 !src/libs/*/*.a
 *.fir
 .*
