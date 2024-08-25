@@ -4,6 +4,8 @@
 
 The Magic Lantern build system is a fairly standard GNU Make system, with some calls out to Python 3 scripts.  It should be safe to use parallel make jobs, e.g. `make -j6`.
 
+People have succeeded in building ML on Windows (via WSL), OSX, and Linux.
+
 The standard output is a zip file, that can be extracted to a memory card ready to run on a camera.  This contains a variety of assets, such as bitmap images, fonts, Lua scripts.  It also includes binary modules, optional components that can be selected to load by the user at runtime.  Finally, there is one primary binary, always named autoexec.bin.
 
 Autoexec.bin is a name checked for by DryOS, and as explained in section 3, can be used to load our code (given some other conditions being true).
