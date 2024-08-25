@@ -74,4 +74,6 @@ cd platform/5D3.123
 make CONFIG_QEMU=y FATAL_WARNINGS=y -j6
 ```
 
+Which env vars were used for a build are not tracked as build dependencies.  This means if you change the options in use, you must manually run `make clean` over the relevant parts.  If you don't, you may have stale binary components, which can lead to dangerous behaviour.
+
 <div style="page-break-after: always; visibility: hidden"></div>
