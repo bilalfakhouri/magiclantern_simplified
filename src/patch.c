@@ -72,11 +72,6 @@ int is_patch_still_applied(struct patch *p)
 // said array, either apply all patches or none.
 // If any error is returned, no patches have been applied.
 // If E_PATCH_OK is returned, all applied successfully.
-//
-// If count is > 1, patches are grouped into a patchset,
-// which changes both display of the patches in debug menu,
-// and means unpatching any of the contained patches triggers
-// unpatching of all patches in the set.
 int apply_patches(struct patch *patches, uint32_t count)
 {
     int err = E_PATCH_OK;

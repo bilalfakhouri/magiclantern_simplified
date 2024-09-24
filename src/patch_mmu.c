@@ -723,7 +723,7 @@ uint32_t read_value(uint8_t *addr, int is_instruction)
 
 // You probably don't want to call this directly.
 // This is used by apply_patch() after it decides what kind
-// of memory is at the address, since on D78X we must use
+// of memory is at the address, since on D78X we want to use
 // different routes for RAM and ROM changes.
 static int patch_memory_rom(struct patch *patch)
 {
@@ -821,6 +821,24 @@ static int patch_memory_ram(struct patch *patch)
 
 int apply_patch(struct patch *patch)
 {
+    // The IS_ROM_PTR() check is for multiple reasons.
+    //
+    // There is the obvious inefficiency of wasting MMU metadata space
+    // for patching RAM, which can be edited directly, but also a more subtle
+    // problem: you can't use MMU to patch TCM RAM.
+    //
+    // This last point is relevant on at least 200D 1.0.1,
+    // where the 0x4000:0x34914 region (possibly more) seems to be TCM-like.
+    // I am not sure on this, since checking the TCM config on real hw suggests
+    // there's no TCM configured.  But the writes that setup this region
+    // don't clear cache (TCM has no cache), and certainly this region cannot
+    // be remapped with MMU (TCM does not respect MMU; instead the underlying
+    // memory should be remapped, but TCM overrides the address range).
+    // Non-standard TCM implementation?  Incompetence on my part
+    // checking for TCM config?
+    //
+    // Many ARM systems use TCM, and in any case, it's better to directly edit RAM.
+
     if (IS_ROM_PTR((uint32_t)patch->addr))
         return patch_memory_rom(patch);
     else
