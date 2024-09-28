@@ -34,6 +34,8 @@ static uint8_t generic_mmu_space[MMU_PAGE_SIZE + MMU_L1_TABLE_SIZE
 
 #include "platform/mmu_patches.h"
 
+extern uint32_t is_cpu1_ready; // set via task_create_ex() on cpu1, cpu1_ready()
+
 // This function expects a bitfield of cpu_ids. Bit 0 is cpu0, bit 1 cpu1, etc.
 extern int send_software_interrupt(uint32_t interrupt, uint32_t shifted_cpu_id);
 extern void *memcpy_dryos(void *dst, const void *src, uint32_t count);
@@ -745,7 +747,13 @@ static int patch_memory_rom(struct patch *patch)
         .waiting = 0,
         .wake = 0
     };
-    wait_for_cpu1_busy_wait_update_mmu(&wait);
+
+    // If cpu1 isn't up yet, we don't trigger an MMU table update.
+    // Caller is responsible for getting it to run an update
+    // if you need to patch cpu0 very early.
+    uint32_t local_is_cpu1_ready = is_cpu1_ready;
+    if (local_is_cpu1_ready)
+        wait_for_cpu1_busy_wait_update_mmu(&wait);
 
     // cpu0 cli, update ttbrs, wake cpu1, sei
 
@@ -765,7 +773,8 @@ static int patch_memory_rom(struct patch *patch)
     qprintf("MMU tables updated");
 
     // cpu0 wakes cpu1, which updates ttbrs, sei
-    wake_cpu1_busy_wait(&wait);
+    if (local_is_cpu1_ready)
+        wake_cpu1_busy_wait(&wait);
     sei(old_int);
 
     // SJE TODO we could be more selective about the cache flush,
@@ -792,7 +801,10 @@ static int patch_memory_ram(struct patch *patch)
         .waiting = 0,
         .wake = 0
     };
-    wait_for_cpu1_busy_wait(&wait);
+
+    uint32_t local_is_cpu1_ready = is_cpu1_ready;
+    if (local_is_cpu1_ready)
+        wait_for_cpu1_busy_wait(&wait);
 
     // cpu0 patch ram, wake cpu1, sei
 
@@ -810,7 +822,8 @@ static int patch_memory_ram(struct patch *patch)
     icache_invalidate((uint32_t)patch->addr, patch->size);
 
     // cpu0 wakes cpu1
-    wake_cpu1_busy_wait(&wait);
+    if (local_is_cpu1_ready)
+        wake_cpu1_busy_wait(&wait);
     sei(old_int);
 
     // SJE TODO we could be more selective about the cache flush,

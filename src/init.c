@@ -602,6 +602,12 @@ void ml_crash_message(char* msg)
     request_crash_log(1);
 }
 
+uint32_t is_cpu1_ready = 0;
+static void cpu1_ready(void)
+{
+    is_cpu1_ready = 1;
+}
+
 /* called before Canon's init_task */
 void boot_pre_init_task()
 {
@@ -672,6 +678,10 @@ void boot_post_init_task(void)
     additional_version[12] = build_version[8];
     additional_version[13] = '\0';
 #endif
+
+    // Get cpu1 to flag when it's fully active,
+    // this proves SGI handlers are usable, so we can use request_RPC()
+    task_create_ex(NULL, 0x10, 0x200, cpu1_ready, NULL, 1);
 
     #ifdef FEATURE_VRAM_RGBA
     while (!rgb_vram_preinit())
