@@ -6,7 +6,15 @@
 #if CONFIG_FW_VERSION == 100 // ensure our hard-coded patch addresses are not broken
                              // by a FW upgrade
 
-struct patch mmu_data_patches[] =
+// Data patches this early on Digic 8 don't seem to work.
+// It looks like ROM1 isn't properly mapped or initialised
+// at that time, so accesses fail.
+struct patch early_data_patches[] =
+{
+
+};
+
+struct patch normal_data_patches[] =
 {
 
 };
@@ -60,9 +68,9 @@ void __attribute__((noreturn,noinline,naked))hook_uart_printf(void)
     );
 }
 
-struct function_hook_patch mmu_code_patches[] =
+struct function_hook_patch early_code_patches[] =
 {
-#if 0
+/*
     {
         .patch_addr = 0xe05952e4, // Late in uart_printf(), at this point
                                   // the formatted string has been constructed.
@@ -70,7 +78,12 @@ struct function_hook_patch mmu_code_patches[] =
         .target_function_addr = (uint32_t)hook_uart_printf,
         .description = "None"
     }
-#endif
+*/
+};
+
+struct function_hook_patch normal_code_patches[] =
+{
+
 };
 
 #endif // 850D FW_VERSION 100

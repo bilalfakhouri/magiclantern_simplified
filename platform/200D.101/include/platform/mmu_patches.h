@@ -3,27 +3,33 @@
 
 #include "patch.h"
 
-static const unsigned char earl_grey_str[] = "Earl Grey, hot";
-static const unsigned char engage_str[] = "Engage!";
+//static uint8_t earl_grey_str[] = "Earl Grey, hot";
+//static uint8_t engage_str[] = "Engage!";
 
 #if CONFIG_FW_VERSION == 101 // ensure our hard-coded patch addresses are not broken
                              // by a FW upgrade
-struct patch mmu_data_patches[] =
+struct patch early_data_patches[] =
 {
 /*
     {
         // replace "Dust Delete Data" with "Earl Grey, hot",
-        // as a low risk (non-code) test that MMU remapping works.
-        .addr = 0xf00d84e7,
+        // as a low risk (non-code) test that early MMU remapping works.
+        .addr = (uint8_t *)0xf00d84e7,
         .old_values = (uint8_t *)0xf00d84e7,
         .new_values = earl_grey_str,
         .size = sizeof(earl_grey_str),
         .description = "Tea"
     },
+*/
+};
+
+struct patch normal_data_patches[] =
+{
+/*
     {
         // replace "High ISO speed NR" with "Engage!",
         // as a low risk (non-code) test that MMU remapping works.
-        .addr = 0xf0048842,
+        .addr = (uint8_t *)0xf0048842,
         .old_values = (uint8_t *)0xf0048842,
         .new_values = engage_str,
         .size = sizeof(engage_str),
@@ -31,7 +37,6 @@ struct patch mmu_data_patches[] =
     }
 */
 };
-
 
 extern void early_printf(char *fmt, ...);
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_multishot_dma_copy(void)
@@ -280,7 +285,7 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))wifi_power_high(void)
     );
 }
 
-struct function_hook_patch mmu_code_patches[] =
+struct function_hook_patch early_code_patches[] =
 {
 /*
     {
@@ -288,7 +293,7 @@ struct function_hook_patch mmu_code_patches[] =
         .orig_content = {0x01, 0x22, 0x02, 0x60, 0x0a, 0x60, 0x70, 0x47}, // used as a check before applying patch
         .target_function_addr = (uint32_t)wifi_power_high,
         .description = "Force Wifi power non-low"
-    }
+    },
 
     {
         .patch_addr = 0xe019bad0, // create_mem_to_mem_lock_and_channel_stuff, how are channels used?
@@ -304,7 +309,6 @@ struct function_hook_patch mmu_code_patches[] =
         .description = "None2"
     }
 
-
     {
         .patch_addr = 0xe019bb86, // mem_to_mem_setup_copy, checking arg structs
         .orig_content = {0x30, 0xb5, 0x0c, 0x46, 0x41, 0x69, 0x8b, 0xb0}, // used as a check before applying patch
@@ -312,6 +316,18 @@ struct function_hook_patch mmu_code_patches[] =
         .description = "None3"
     }
 
+    {
+        .patch_addr = 0xe056314e, // mpu_recv, for logging
+        .orig_content = {0x2d, 0xe9, 0xfc, 0x41, 0x04, 0x46, 0xfc, 0x4d}, // used as a check before applying patch
+        .target_function_addr = (uint32_t)hook_mpu_recv,
+        .description = "Log MPU recv"
+    }
+*/
+};
+
+struct function_hook_patch normal_code_patches[] =
+{
+/*
     {
         .patch_addr = 0xe056314e, // mpu_recv, for logging
         .orig_content = {0x2d, 0xe9, 0xfc, 0x41, 0x04, 0x46, 0xfc, 0x4d}, // used as a check before applying patch

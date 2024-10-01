@@ -440,6 +440,12 @@ static void my_big_init_task()
         return;
     }
 
+#if defined(CONFIG_MMU_REMAP) && defined(CONFIG_RPC)
+    int err = apply_normal_patches();
+    if (err < 0)
+        qprintf("Error from apply_normal_patches: %d\n", err);
+#endif
+
     _load_fonts();
 
     // SJE not sure on best place to do this.  Before HELLO_WORLD is nice
@@ -602,11 +608,13 @@ void ml_crash_message(char* msg)
     request_crash_log(1);
 }
 
+#ifdef CONFIG_RPC
 uint32_t is_cpu1_ready = 0;
 static void cpu1_ready(void)
 {
     is_cpu1_ready = 1;
 }
+#endif
 
 /* called before Canon's init_task */
 void boot_pre_init_task()
@@ -679,9 +687,11 @@ void boot_post_init_task(void)
     additional_version[13] = '\0';
 #endif
 
+#ifdef CONFIG_RPC
     // Get cpu1 to flag when it's fully active,
     // this proves SGI handlers are usable, so we can use request_RPC()
     task_create_ex(NULL, 0x10, 0x200, cpu1_ready, NULL, 1);
+#endif
 
     #ifdef FEATURE_VRAM_RGBA
     while (!rgb_vram_preinit())

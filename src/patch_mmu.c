@@ -14,6 +14,12 @@
 #error "So far, we've only seen MMU on Digic 7 and up.  This file makes that assumption re assembly, you'll need to fix something"
 #endif
 
+#ifndef CONFIG_RPC
+#error "We use inter-core RPC on MMU cams to reduce the window where the two cores see different memory content"
+// The RPC stuff is pretty easy to find and this removes a lot of conditional ifdefs,
+// for having cpu0 get cpu1 to take MMU updates
+#endif
+
 #ifndef CONFIG_MMU
 #error "Attempting to build patch_mmu.c but cam not listed as having an MMU - this is probably a mistake"
 #endif
@@ -485,6 +491,20 @@ static int calc_mmu_globals(uint32_t start_addr, uint32_t size)
     return 0;
 }
 
+// wraps DryOS change_mmu_tables(),
+// along with correct cli()/sei(), cache syncs
+void change_mmu_tables_wrapper(void)
+{
+    uint32_t cpu_id = get_cpu_id();
+    uint32_t cpu_mmu_offset = MMU_L1_TABLE_SIZE - 0x100 + cpu_id * 0x80;
+    uint32_t old_int = cli();
+    change_mmu_tables(global_mmu_conf.L1_table + cpu_mmu_offset,
+                      global_mmu_conf.L1_table,
+                      cpu_id);
+    sei(old_int);
+    _sync_caches();
+}
+
 static uint32_t mmu_globals_initialised = 0;
 static void init_mmu_globals(void)
 {
@@ -550,30 +570,136 @@ static void init_mmu_globals(void)
 
 }
 
-// applies compile-time specified patches from platform/XXD/include/platform/mmu_patches.h
+// Applies compile-time specified patches from platform/XXD/include/platform/mmu_patches.h
+// This is called quite early in boot, before stdlib is initialised, and before cpu1
+// is fully brought up on dual cores.  This means malloc and RPC are not available.
+// Patches to rom via this function won't be immediately visible to code on cpu1;
+// they will become visible later in boot, when change_mmu_tables() gets triggered on cpu1.
 //
-// This doesn't use patch manager, meaning you both can't unpatch them,
-// and won't see them in Debug menu.
-static int apply_platform_patches(void)
+// Where possible, using apply_normal_patches() is preferred, it's cleaner and
+// more consistent.  That happens later; this function is for when you really
+// need to patch very early code.
+static int apply_early_patches(void)
 {
-    for (uint32_t i = 0; i != COUNT(mmu_data_patches); i++)
+    // FIXME: not yet implemented.  This needs to do something vaguely similar to
+    // code patches below, possibly breaking things into 4 byte patches to avoid
+    // needing malloc (or some other mechanism to get space for the data).
+    /*
+    if (COUNT(early_data_patches))
     {
-        if (apply_data_patch(&global_mmu_conf, &mmu_data_patches[i]) < 0)
+        if (apply_patches(mmu_data_patches, COUNT(mmu_data_patches)))
             return -1;
     }
+    */
 
-    for (uint32_t i = 0; i != COUNT(mmu_code_patches); i++)
+    if (COUNT(early_code_patches))
     {
-        if (apply_code_patch(&global_mmu_conf, &mmu_code_patches[i]) < 0)
+        struct patch code_patches[COUNT(early_code_patches) * 2] = {};
+        uint8_t code_hooks[8 * COUNT(early_code_patches)] = {};
+
+        for (uint32_t i = 0; i != COUNT(early_code_patches); i++)
+        {
+            // Our hook is 4 bytes for mov pc, [pc + 4], then 4 for the destination.
+            // Thumb rules around PC mean the +4 offset differs
+            // depending on where we write it in mem; PC is seen as +2
+            // if the Thumb instr is 2-aligned, +4 otherwise.
+            //
+            // We split this into two patches, meaning we can use the 4 byte
+            // storage of new_value / old_value.  We want this because apply_patches()
+            // will use malloc() if it uses new_values / old_values.
+            // We run this function too early for malloc to have any working allocators;
+            // the OS will assert.  I think we could avoid this if we had another
+            // allocator choice in our overloaded malloc, used when we're in this
+            // very early context.
+            code_hooks[8 * i + 0] = 0xdf;
+            code_hooks[8 * i + 1] = 0xf8;
+            code_hooks[8 * i + 2] = 0x00;
+            code_hooks[8 * i + 3] = 0xf0;
+            code_hooks[8 * i + 4] = (uint8_t)(early_code_patches[i].target_function_addr & 0xff);
+            code_hooks[8 * i + 5] = (uint8_t)((early_code_patches[i].target_function_addr >> 8) & 0xff);
+            code_hooks[8 * i + 6] = (uint8_t)((early_code_patches[i].target_function_addr >> 16) & 0xff);
+            code_hooks[8 * i + 7] = (uint8_t)((early_code_patches[i].target_function_addr >> 24) & 0xff);
+            if (early_code_patches[i].patch_addr & 0x2)
+                code_hooks[8 * i + 2] += 2;
+
+            code_patches[i * 2].addr = (uint8_t *)early_code_patches[i].patch_addr;
+            code_patches[i * 2].old_value = *(uint32_t *)(&(early_code_patches[i].orig_content));
+            code_patches[i * 2].new_value = *(uint32_t *)(&(code_hooks[8 * i]));
+            code_patches[i * 2].size = 4;
+            code_patches[i * 2].description = early_code_patches[i].description;
+            code_patches[i * 2].is_instruction = 1;
+
+            code_patches[i * 2 + 1].addr = (uint8_t *)early_code_patches[i].patch_addr + 4;
+            code_patches[i * 2 + 1].old_value = *(uint32_t *)(&(early_code_patches[i].orig_content[4]));
+            code_patches[i * 2 + 1].new_value = *(uint32_t *)(&(code_hooks[8 * i + 4]));
+            code_patches[i * 2 + 1].size = 4;
+            code_patches[i * 2 + 1].description = early_code_patches[i].description;
+            code_patches[i * 2 + 1].is_instruction = 1;
+        }
+        if (apply_patches(code_patches, COUNT(early_code_patches) * 2))
             return -2;
     }
     return 0;
 }
 
-// called via RPC only, cpu0 triggers on cpu1
-static void change_mmu_tables_cpu1(void *unused)
+// This applies compile-time specified patches, happening later than
+// apply_early_patches().  This is done via a task, and happens late enough
+// that we can use malloc and RPC, allowing us to patch on both cores.
+int apply_normal_patches(void)
 {
+    int i = 0;
+    for (; i < 5; i++)
+    {
+        if (is_cpu1_ready == 1)
+            break;
+        msleep(50);
+    }
+    qprintf("In apply_normal_patches(): %d\n", i);
+    // If cpu1 still isn't ready, something probably went wrong.
+    // The patch routines won't try to use it, so only cpu0 will
+    // see the patches.
 
+    if (COUNT(normal_data_patches))
+    {
+        if (apply_patches(normal_data_patches, COUNT(normal_data_patches)))
+            return -2;
+    }
+
+    if (COUNT(normal_code_patches))
+    {
+        struct patch code_patches[COUNT(normal_code_patches)] = {};
+        uint8_t code_hooks[8 * COUNT(normal_code_patches)] = {};
+
+        for (uint32_t i = 0; i != COUNT(normal_code_patches); i++)
+        {
+            struct function_hook_patch *patch = &normal_code_patches[i];
+            // Our hook is 4 bytes for mov pc, [pc + 4], then 4 for the destination.
+            // Thumb rules around PC mean the +4 offset differs
+            // depending on where we write it in mem; PC is seen as +2
+            // if the Thumb instr is 2-aligned, +4 otherwise.
+            code_hooks[8 * i + 0] = 0xdf;
+            code_hooks[8 * i + 1] = 0xf8;
+            code_hooks[8 * i + 2] = 0x00;
+            code_hooks[8 * i + 3] = 0xf0;
+            code_hooks[8 * i + 4] = (uint8_t)(patch->target_function_addr & 0xff);
+            code_hooks[8 * i + 5] = (uint8_t)((patch->target_function_addr >> 8) & 0xff);
+            code_hooks[8 * i + 6] = (uint8_t)((patch->target_function_addr >> 16) & 0xff);
+            code_hooks[8 * i + 7] = (uint8_t)((patch->target_function_addr >> 24) & 0xff);
+            if (patch->patch_addr & 0x2)
+                code_hooks[8 * i + 2] += 2;
+
+            // create data patch to apply our hook
+            code_patches[i].addr = (uint8_t *)patch->patch_addr;
+            code_patches[i].old_values = (uint8_t *)patch->orig_content;
+            code_patches[i].new_values = &code_hooks[8 * i];
+            code_patches[i].size = 8;
+            code_patches[i].description = patch->description;
+            code_patches[i].is_instruction = 1;
+        }
+        if (apply_patches(code_patches, COUNT(normal_code_patches)))
+            return -3;
+    }
+    return 0;
 }
 
 // cpu0 uses create_task_ex(init1_task, <etc>) to start tasks etc
@@ -600,15 +726,7 @@ static void init1_task_wrapper(void)
     );
 
     // update TTBRs, handover to the real init1_task
-    uint32_t cpu_id = get_cpu_id();
-    uint32_t cpu_mmu_offset = MMU_L1_TABLE_SIZE - 0x100 + cpu_id * 0x80;
-    uint32_t old_int = cli();
-    change_mmu_tables(global_mmu_conf.L1_table + cpu_mmu_offset,
-                      global_mmu_conf.L1_table,
-                      cpu_id);
-    sei(old_int);
-    _sync_caches();
-
+    change_mmu_tables_wrapper();
     init1_task();
 }
 #endif // CONFIG_INIT1_HIJACK
@@ -618,7 +736,6 @@ static int init_remap_mmu(void)
     static uint32_t mmu_remap_cpu0_init = 0;
 
     uint32_t cpu_id = get_cpu_id();
-    uint32_t cpu_mmu_offset = MMU_L1_TABLE_SIZE - 0x100 + cpu_id * 0x80;
 
     // Both CPUs want to use the updated MMU tables, but
     // only one wants to do the setup.
@@ -674,17 +791,16 @@ static int init_remap_mmu(void)
             apply_data_patch(&global_mmu_conf, &patch2);
             #endif // CONFIG_INIT1_HIJACK
 
-            // Perform any hard-coded patches in include/platform/mmu_patches.h
-            if (apply_platform_patches() < 0)
+            // Perform early hard-coded patches in include/platform/mmu_patches.h
+            int err = apply_early_patches();
+            if (err < 0)
+            {
+                qprintf("Error from apply_early_patches: %d\n", err);
                 return -2;
+            }
 
             // update TTBRs (this DryOS function also triggers TLBIALL)
-            uint32_t old_int = cli();
-            change_mmu_tables(global_mmu_conf.L1_table + cpu_mmu_offset,
-                              global_mmu_conf.L1_table,
-                              cpu_id);
-            sei(old_int);
-            _sync_caches();
+            change_mmu_tables_wrapper();
             mmu_remap_cpu0_init = 1;
 
             // I wanted to trigger cpu1 remap via request_RPC()
@@ -770,7 +886,7 @@ static int patch_memory_rom(struct patch *patch)
     change_mmu_tables(global_mmu_conf.L1_table + cpu_mmu_offset,
                       global_mmu_conf.L1_table,
                       cpu_id);
-    qprintf("MMU tables updated");
+    qprint("MMU tables updated\n");
 
     // cpu0 wakes cpu1, which updates ttbrs, sei
     if (local_is_cpu1_ready)

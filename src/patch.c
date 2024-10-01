@@ -232,16 +232,25 @@ static MENU_UPDATE_FUNC(patch_update)
         return;
     }
 
-    /* long description */
-    MENU_SET_HELP("%s.", patches_global[p].description);
-
-    /* short description: assume the long description is formatted as "module_name: it does this and that" */
-    /* => extract module_name and display it as short description */
     char short_desc[16];
-    snprintf(short_desc, sizeof(short_desc), "%s", patches_global[p].description);
-    char *sep = strchr(short_desc, ':');
-    if (sep) *sep = 0;
-    MENU_SET_RINFO("%s", short_desc);
+    if (patches_global[p].description != NULL)
+    {
+        /* long description */
+        MENU_SET_HELP("%s.", patches_global[p].description);
+
+        /* short description: assume the long description is formatted as "module_name: it does this and that" */
+        /* => extract module_name and display it as short description */
+        snprintf(short_desc, sizeof(short_desc), "%s", patches_global[p].description);
+        char *sep = strchr(short_desc, ':');
+        if (sep)
+            *sep = 0;
+        MENU_SET_RINFO("%s", short_desc);
+    }
+    else
+    {
+        MENU_SET_HELP("%s.", "NONE");
+        MENU_SET_RINFO("%s", "NONE");
+    }
 
     /* ROM patches are considered invasive, display them with orange icon */
     MENU_SET_ICON(IS_ROM_PTR(patches_global[p].addr) ? MNI_ORANGE_CIRCLE : MNI_GREEN_CIRCLE, 0);

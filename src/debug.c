@@ -478,42 +478,6 @@ void mem_to_file(char *name, uint32_t addr, uint32_t size)
     FIO_CloseFile(f);
 }
 
-#if 0 && defined(CONFIG_200D) && defined(CONFIG_MMU_REMAP)
-#include "sgi.h"
-#include "cpu.h"
-#include "patch_mmu.h"
-#include "mmu_utils.h"
-extern int uart_printf(const char *fmt, ...);
-extern int send_software_interrupt(uint32_t interrupt, uint32_t cpu_id);
-extern int apply_data_patch(struct mmu_config *, struct region_patch *);
-extern void change_mmu_tables(uint8_t *ttbr0, uint8_t *ttbr1, uint32_t cpu_id);
-
-static const unsigned char earl_grey_str[] = "Earl Grey, hot";
-
-#if CONFIG_FW_VERSION == 101 // ensure our hard-coded patch addresses are not broken
-                             // by a FW upgrade
-struct region_patch mmu_data_patches_debug[] =
-{
-    {
-        // replace "Dust Delete Data" with "Earl Grey, hot",
-        // as a low risk (non-code) test that MMU remapping works.
-        .patch_addr = 0xf00d84e7,
-        .orig_content = NULL,
-        .patch_content = earl_grey_str,
-        .size = sizeof(earl_grey_str),
-        .description = "Tea"
-    }
-};
-
-static void test_patch(void *unused)
-{
-    uint32_t cpu_id = get_cpu_id();
-    DryosDebugMsg(0, 15, "Post-patch, %d: 0x%x", cpu_id, *(int *)0xf00d84e7);
-}
-
-#endif // CONFIG_FW_VERSION == 101
-#endif // 200D && REMAP
-
 #if 0 && defined(CONFIG_200D)
 extern int uart_printf(const char *fmt, ...);
 void print_match(uint32_t addr)
@@ -622,38 +586,12 @@ static uint32_t ___get_photo_cmos_iso_start_200d(void)
 }
 #endif
 
-
-#if 1 && defined(CONFIG_MMU_REMAP) && defined(CONFIG_200D)
-#include "dryos_rpc.h"
-#include "patch.h"
-#include "mmu_utils.h"
-extern int uart_printf(const char *fmt, ...);
-extern void change_mmu_tables(uint8_t *ttbr0, uint8_t *ttbr1, uint32_t cpu_id);
-void print_test()
-{
-    int cpu_id = get_cpu_id();
-    uart_printf("cpu%d: %s\n", cpu_id, 0xf0048842);
-}
-
-static void change_mmu_tables_cpu1(void *arg)
-{
-    uint32_t cpu_id = get_cpu_id();
-    uint32_t cpu_mmu_offset = MMU_L1_TABLE_SIZE - 0x100 + cpu_id * 0x80;
-
-    struct mmu_config *mmu_conf = (struct mmu_config *)arg;
-    // update TTBRs (this DryOS function also triggers TLBIALL)
-    change_mmu_tables(mmu_conf->L1_table + cpu_mmu_offset,
-                      mmu_conf->L1_table,
-                      cpu_id);
-}
-#endif
-
 int yuv_dump_sec = 0;
 static void run_test()
 {
     DryosDebugMsg(0, 15, "run_test fired");
 
-#if 1 && defined(CONFIG_200D)
+#if 0 && defined(CONFIG_200D)
     // log multishot stuff
 //    dm_set_store_level(0xa6, 2);
 //    dm_set_print_level(0xa6, 2);
