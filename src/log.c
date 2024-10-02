@@ -6,9 +6,6 @@
 #include "string.h"
 #include "log.h"
 
-#define MIN_LOG_BUF_SIZE 0x10000
-#define MIN_LOG_WRITE_SIZE 0x1000
-
 // This sem guards usage of the buf_written and buf_next pointers
 static struct semaphore *log_mem_sem = NULL;
 // This sem controls disk writing
@@ -196,4 +193,10 @@ int send_log_data(uint8_t *data, uint32_t size)
 cleanup:
     give_semaphore(log_mem_sem);
     return ret;
+}
+
+// Must be used with null terminated strings only
+int send_log_data_str(char *s)
+{
+    return send_log_data((uint8_t *)s, strlen(s));
 }
