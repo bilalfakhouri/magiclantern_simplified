@@ -256,40 +256,6 @@ static int apply_data_patch(struct mmu_config *mmu_conf,
     return 0;
 }
 
-static int apply_code_patch(struct mmu_config *mmu_conf,
-                            struct function_hook_patch *patch)
-{
-    // confirm orig_content matches
-    for (uint32_t i = 0; i < 8; i++)
-    {
-        if (*(uint8_t *)(patch->patch_addr + i) != *(patch->orig_content + i))
-            return -1;
-    }
-
-    // Our hook is 4 bytes for mov pc, [pc + 4].
-    // Thumb rules around PC mean the +4 offset differs
-    // depending on where we write it in mem; PC is seen as +2
-    // if the Thumb instr is 2-aligned, +4 otherwise.
-    uint8_t hook[8] = {0xdf, 0xf8, 0x00, 0xf0,
-                       (uint8_t)(patch->target_function_addr & 0xff),
-                       (uint8_t)((patch->target_function_addr >> 8) & 0xff),
-                       (uint8_t)((patch->target_function_addr >> 16) & 0xff),
-                       (uint8_t)((patch->target_function_addr >> 24) & 0xff)};
-    if (patch->patch_addr & 0x2)
-        hook[2] += 2;
-
-    // create data patch to apply our hook
-    struct patch hook_patch = {
-        .addr = (uint8_t *)patch->patch_addr,
-        .old_values = (uint8_t *)patch->patch_addr,
-        .new_values = hook,
-        .size = 8,
-        .description = NULL
-    };
-
-    return apply_data_patch(mmu_conf, &hook_patch);
-}
-
 struct mmu_config global_mmu_conf = {0};
 
 // Given a region described by start_addr and size,
@@ -570,6 +536,47 @@ static void init_mmu_globals(void)
 
 }
 
+// Given a well formed function_hook_patch, convert to a standard patch.
+// We use function_hook_patch because it's easier for the caller to specify,
+// e.g. there's no need to compute the asm for the hook.
+//
+// patch_out must point to enough space for a patch,
+// this function populates it but does not allocate memory.
+//
+// hook_mem_out must point to at least 8 bytes of valid mem.
+// The hook asm is written here, and associated with patch_out.new_values.
+int convert_f_patch_to_patch(struct function_hook_patch *f_patch_in,
+                             struct patch *patch_out,
+                             uint8_t *hook_mem_out)
+{
+    if (f_patch_in == NULL || patch_out == NULL || hook_mem_out == NULL)
+        return -1;
+
+    // Our hook is 4 bytes for mov pc, [pc + 4], then 4 for the destination.
+    // Thumb rules around PC mean the +4 offset differs
+    // depending on where we write it in mem; PC is seen as +2
+    // if the Thumb instr is 2-aligned, +4 otherwise.
+    hook_mem_out[0] = 0xdf;
+    hook_mem_out[1] = 0xf8;
+    hook_mem_out[2] = 0x00;
+    hook_mem_out[3] = 0xf0;
+    hook_mem_out[4] = (uint8_t)(f_patch_in->target_function_addr & 0xff);
+    hook_mem_out[5] = (uint8_t)((f_patch_in->target_function_addr >> 8) & 0xff);
+    hook_mem_out[6] = (uint8_t)((f_patch_in->target_function_addr >> 16) & 0xff);
+    hook_mem_out[7] = (uint8_t)((f_patch_in->target_function_addr >> 24) & 0xff);
+    if (f_patch_in->patch_addr & 0x2)
+        hook_mem_out[2] += 2;
+
+    patch_out->addr = (uint8_t *)f_patch_in->patch_addr;
+    patch_out->old_values = (uint8_t *)f_patch_in->orig_content;
+    patch_out->new_values = hook_mem_out;
+    patch_out->size = 8;
+    patch_out->description = f_patch_in->description;
+    patch_out->is_instruction = 1;
+
+    return 0;
+}
+
 // Applies compile-time specified patches from platform/XXD/include/platform/mmu_patches.h
 // This is called quite early in boot, before stdlib is initialised, and before cpu1
 // is fully brought up on dual cores.  This means malloc and RPC are not available.
@@ -672,29 +679,10 @@ int apply_normal_patches(void)
 
         for (uint32_t i = 0; i != COUNT(normal_code_patches); i++)
         {
-            struct function_hook_patch *patch = &normal_code_patches[i];
-            // Our hook is 4 bytes for mov pc, [pc + 4], then 4 for the destination.
-            // Thumb rules around PC mean the +4 offset differs
-            // depending on where we write it in mem; PC is seen as +2
-            // if the Thumb instr is 2-aligned, +4 otherwise.
-            code_hooks[8 * i + 0] = 0xdf;
-            code_hooks[8 * i + 1] = 0xf8;
-            code_hooks[8 * i + 2] = 0x00;
-            code_hooks[8 * i + 3] = 0xf0;
-            code_hooks[8 * i + 4] = (uint8_t)(patch->target_function_addr & 0xff);
-            code_hooks[8 * i + 5] = (uint8_t)((patch->target_function_addr >> 8) & 0xff);
-            code_hooks[8 * i + 6] = (uint8_t)((patch->target_function_addr >> 16) & 0xff);
-            code_hooks[8 * i + 7] = (uint8_t)((patch->target_function_addr >> 24) & 0xff);
-            if (patch->patch_addr & 0x2)
-                code_hooks[8 * i + 2] += 2;
-
-            // create data patch to apply our hook
-            code_patches[i].addr = (uint8_t *)patch->patch_addr;
-            code_patches[i].old_values = (uint8_t *)patch->orig_content;
-            code_patches[i].new_values = &code_hooks[8 * i];
-            code_patches[i].size = 8;
-            code_patches[i].description = patch->description;
-            code_patches[i].is_instruction = 1;
+            if (convert_f_patch_to_patch(&normal_code_patches[i],
+                                         &code_patches[i],
+                                         &code_hooks[8 * i]))
+                return -3;
         }
         if (apply_patches(code_patches, COUNT(normal_code_patches)))
             return -3;
