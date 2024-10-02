@@ -22,4 +22,10 @@ int send_log_data(uint8_t *data, uint32_t size);
 // Convenience function for null terminated strings
 int send_log_data_str(char *s);
 
+// Optional funcs to control logging.  It starts enabled.
+// If you disable, send_log_data() will silently discard all data
+// until you enable.
+void enable_logging(void);
+void disable_logging(void);
+
 #endif // _log_h_

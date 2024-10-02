@@ -23,6 +23,18 @@ static uint32_t buf_size = 0;
 
 static FILE *log_fp = NULL;
 
+static uint32_t is_log_enabled = 1;
+
+void enable_logging(void)
+{
+    is_log_enabled = 1;
+}
+
+void disable_logging(void)
+{
+    is_log_enabled = 0;
+}
+
 // periodically writes buffer to disk
 static void disk_write_task(void *unused)
 {
@@ -102,6 +114,9 @@ int init_log(uint8_t *buf, uint32_t size, char *filename)
 // Any negative return value signifies no data was written.
 int send_log_data(uint8_t *data, uint32_t size)
 {
+    if (is_log_enabled == 0)
+        return 0;
+
     if (size > buf_size)
     {
         // Should we handle this case?  We could flush existing buf,
