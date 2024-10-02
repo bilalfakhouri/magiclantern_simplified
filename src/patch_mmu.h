@@ -4,9 +4,13 @@
 // Don't include this header file directly, instead include patch.h.
 // This header only has the parts required for patching via MMU.
 
-#if !defined(CONFIG_MMU_REMAP)
-#error "patch_mmu.h included but CONFIG_MMU_REMAP not defined, shouldn't happen"
+#if defined(FW_VERSION) && !defined(CONFIG_MMU_REMAP)
+    // We want to fail cam builds without CONFIG_MMU_REMAP,
+    // but allow module builds (modules can run on both kinds of cams)
+    #error "patch_mmu.h included but CONFIG_MMU_REMAP not defined, shouldn't happen"
 #endif
+
+#include "patch.h"
 
 struct function_hook_patch
 {
