@@ -24,6 +24,7 @@ static uint32_t buf_size = 0;
 static FILE *log_fp = NULL;
 
 static uint32_t is_log_enabled = 1;
+static uint32_t use_sems = 1;
 
 void enable_logging(void)
 {
@@ -33,6 +34,18 @@ void enable_logging(void)
 void disable_logging(void)
 {
     is_log_enabled = 0;
+}
+
+// I don't understand why, but when attempting to log in some contexts,
+// e.g. inside SetEDMAC() on 70D 1.1.2, take_semaphore() inside
+// send_log_data() triggers a partial camera hang.
+//
+// If required, this function should be called *before* init_log(),
+// so that when initialised, the log won't use log_mem_sem.
+// This can, of course, lead to problems when logging.
+void disable_safe_logging(void)
+{
+    use_sems = 0;
 }
 
 // periodically writes buffer to disk
@@ -62,9 +75,11 @@ static void disk_write_task(void *unused)
             FIO_WriteFile(log_fp, buf_start, (next - buf_start));
         }
 
-        take_semaphore(log_mem_sem, 0);
+        if (use_sems)
+            take_semaphore(log_mem_sem, 0);
         buf_written = next;
-        give_semaphore(log_mem_sem);
+        if (use_sems)
+            give_semaphore(log_mem_sem);
     }
     // ML is shutting down, close file.  There should be no more
     // data to write out, it's just happened above.
@@ -126,10 +141,14 @@ int send_log_data(uint8_t *data, uint32_t size)
 
     if (log_mem_sem == NULL)
         return -4; // probably didn't call init_log() successfully
-    int err = take_semaphore(log_mem_sem, 200);
-    if (err)
-    { // timeout, no logging for you
-        return -2;
+
+    if (use_sems)
+    {
+        int err = take_semaphore(log_mem_sem, 200);
+        if (err)
+        { // timeout, no logging for you
+            return -2;
+        }
     }
 
     // We have semaphore, and can manipulate "next" and "written" pointers.
@@ -139,6 +158,7 @@ int send_log_data(uint8_t *data, uint32_t size)
     // while filling, and disk_write_task() will do that while emptying.
     // Disallowing it on fill means we don't have to deal with ambiguity.
     int32_t ret = -3;
+
     uint32_t available_space = 0;
     if (buf_next >= buf_written)
     { // next mem writes occur between buf_next and buf_end, and can wrap
@@ -206,7 +226,8 @@ int send_log_data(uint8_t *data, uint32_t size)
     }
 
 cleanup:
-    give_semaphore(log_mem_sem);
+    if (use_sems)
+        give_semaphore(log_mem_sem);
     return ret;
 }
 

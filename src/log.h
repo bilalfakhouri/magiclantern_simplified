@@ -28,4 +28,13 @@ int send_log_data_str(char *s);
 void enable_logging(void);
 void disable_logging(void);
 
+// I don't understand why, but when attempting to log in some contexts,
+// e.g. inside SetEDMAC() on 70D 1.1.2, take_semaphore() inside
+// send_log_data() triggers a partial camera hang.
+//
+// If required, this function should be called *before* init_log(),
+// so that when initialised, the log won't use log_mem_sem.
+// This can, of course, lead to problems when logging.
+void disable_safe_logging(void);
+
 #endif // _log_h_

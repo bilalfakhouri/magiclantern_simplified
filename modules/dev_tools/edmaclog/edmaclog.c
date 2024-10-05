@@ -17,6 +17,17 @@
 
 #include "hooks_thumb.h"
 
+// D678X cams don't provide this symbol, it's for cache hack patching,
+// which they don't have.  D45 cams will override this with real code at link time.
+extern WEAK_FUNC(ret_0) int patch_hook_function(uintptr_t addr, uint32_t orig_instr,
+                                                patch_hook_function_cbr hook_function,
+                                                const char *description);
+
+// D45 cams don't provide this symbol, it's for MMU cams
+extern WEAK_FUNC(ret_0) int convert_f_patch_to_patch(struct function_hook_patch *f_patch_in,
+                                                     struct patch *patch_out,
+                                                     uint8_t *hook_mem_out);
+
 static uint32_t is_log_enabled = 0;
 static void log_control_task()
 {
@@ -53,9 +64,15 @@ static unsigned int edmac_init()
         if (log_buf == NULL)
             return -1;
     }
-    init_log(log_buf, MIN_LOG_BUF_SIZE, "edmac.log");
-    extern int uart_printf(const char *fmt, ...);
-    uart_printf("pre patch\n");
+
+    if (is_camera("70D", "1.1.2"))
+    {
+        // This cam has problems using take_semaphore() in some
+        // contexts we want to log in.  Cause unknown.
+        disable_safe_logging();
+    }
+    if (init_log(log_buf, MIN_LOG_BUF_SIZE, "edmac.log") < 0)
+        return -2;
 
     if (is_camera("200D", "1.0.1"))
     {
@@ -67,6 +84,36 @@ static unsigned int edmac_init()
                 .target_function_addr = (uint32_t)hook_CreateResLockEntry_200D,
                 .description = "Log CreateResLockEntry"
             },
+            {
+                .patch_addr = 0x35486, // edmac_set_addr
+                .orig_content = {0x76, 0x4a, 0x21, 0xf0, 0x40, 0x41, 0x52, 0xf8},
+                .target_function_addr = (uint32_t)hook_set_addr_200D,
+                .description = "Log SetAddr"
+            },
+            {
+                .patch_addr = 0x35506, // edmac_set_size
+                .orig_content = {0xf0, 0xb5, 0x05, 0x46, 0x55, 0x4e, 0x89, 0xb0},
+                .target_function_addr = (uint32_t)hook_set_size_200D,
+                .description = "Log SetSize"
+            },
+            {
+                .patch_addr = 0x3649c, // ConnectWriteEDMAC
+                .orig_content = {0x70, 0xb5, 0x35, 0x28, 0x0d, 0x46, 0x04, 0x46},
+                .target_function_addr = (uint32_t)hook_ConnectWriteEDMAC_200D,
+                .description = "Log ConnectWriteEDMAC"
+            },
+            {
+                .patch_addr = 0x364f0, // ConnectReadEDMAC
+                .orig_content = {0x70, 0xb5, 0x35, 0x28, 0x0d, 0x46, 0x04, 0x46},
+                .target_function_addr = (uint32_t)hook_ConnectReadEDMAC_200D,
+                .description = "Log ConnectReadEDMAC"
+            },
+            {
+                .patch_addr = 0x35392, // StartEDMAC
+                .orig_content = {0xc9, 0x4a, 0x00, 0x21, 0xd4, 0x3a, 0x42, 0xf8},
+                .target_function_addr = (uint32_t)hook_StartEDMAC_200D,
+                .description = "Log StartEDMAC"
+            },
         };
         struct patch patches[COUNT(f_patches)] = {};
         uint8_t code_hooks[8 * COUNT(f_patches)] = {};
@@ -77,17 +124,37 @@ static unsigned int edmac_init()
                                          &patches[i],
                                          &code_hooks[8 * i]))
             {
-                return -2;
+                return -3;
             }
         }
         apply_patches(patches, COUNT(f_patches));
+    }
+    else if (is_camera("70D", "1.1.2"))
+    {
+            patch_hook_function(0x3817c, // StartEDMAC
+                                0xe92d47ff, // orig_instr
+                                hook_StartEDMAC_70D,
+                                "Log StartEDMAC");
+            patch_hook_function(0x37ff4, // ConnectReadEDMAC
+                                0xe92d40fe, // orig_instr
+                                hook_ConnectReadEDMAC_70D,
+                                "Log ConnectReadEDMAC");
+            patch_hook_function(0x37f30, // ConnectWriteEDMAC
+                                0xe92d403e, // orig_instr
+                                hook_ConnectWriteEDMAC_70D,
+                                "Log ConnectWriteDMAC");
+            patch_hook_function(0x37dd0, // SetEDMAC
+                                0xe92d40fe, // orig_instr
+//            patch_hook_function(0x37a90, // _SetEDMAC, higher one doesn't like being hooked?
+//                                0xe92d47f0, // orig_instr
+                                hook_SetEDMAC_70D,
+                                "Log SetEDMAC");
     }
     else
     {
         bmp_printf(FONT_MED, 20, 20, "No hooks defined for this cam, cannot start logging");
         return CBR_RET_ERROR;
     }
-    uart_printf("post patch\n");
     
     menu_add("Debug", edmac_menu, COUNT(edmac_menu));
     return 0;

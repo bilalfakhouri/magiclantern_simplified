@@ -1,7 +1,8 @@
 # define the module name - make sure name is max 8 characters
 MODULE_NAME = edmaclog
 MODULE_OBJS = $(BUILD_DIR)/edmaclog.o \
-              $(BUILD_DIR)/hooks_thumb.o
+              $(BUILD_DIR)/hooks_thumb_70D.o \
+              $(BUILD_DIR)/hooks_thumb_200D.o
 TOP_DIR = ../../..
 
 # include modules environment
@@ -11,8 +12,12 @@ CFLAGS_ARCHLESS = $(filter-out -march=armv7-r -march=armv7-a -march=armv5te,$(CF
 
 # We want the core module to run on any cam.
 # We need Thumb instructions for hooks on D678X cams.
-# We build the code that will only run on modern cams in this file.
-# Do not call anything in this file from D45.
-$(BUILD_DIR)/hooks_thumb.o: hooks_thumb.c
+# We link in object files built with the arch we need,
+# code in edmaclog.c is responsible for never calling
+# Thumb from non-Thumb cam, etc.
+$(BUILD_DIR)/hooks_thumb_200D.o: hooks_thumb_200D.c
 	$(CC) $(CFLAGS_ARCHLESS) -mthumb -march=armv7 $(CDEPS_FLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/hooks_thumb_70D.o: hooks_thumb_70D.c
+	$(CC) $(CFLAGS) $(CDEPS_FLAGS) -c -o $@ $<
 
