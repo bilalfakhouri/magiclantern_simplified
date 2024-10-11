@@ -2,6 +2,7 @@
 MODULE_NAME = edmaclog
 MODULE_OBJS = $(BUILD_DIR)/edmaclog.o \
               $(BUILD_DIR)/hooks_thumb_70D.o \
+              $(BUILD_DIR)/hooks_thumb_5D3.o \
               $(BUILD_DIR)/hooks_thumb_200D.o
 TOP_DIR = ../../..
 
@@ -19,5 +20,8 @@ $(BUILD_DIR)/hooks_thumb_200D.o: hooks_thumb_200D.c
 	$(CC) $(CFLAGS_ARCHLESS) -mthumb -march=armv7 $(CDEPS_FLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/hooks_thumb_70D.o: hooks_thumb_70D.c
+	$(CC) $(CFLAGS) $(CDEPS_FLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/hooks_thumb_5D3.o: hooks_thumb_5D3.c
 	$(CC) $(CFLAGS) $(CDEPS_FLAGS) -c -o $@ $<
 

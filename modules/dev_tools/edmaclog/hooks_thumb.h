@@ -23,6 +23,11 @@ void hook_ConnectReadEDMAC_70D(uint32_t *regs, uint32_t *stack, uint32_t pc);
 void hook_SetEDMAC_70D(uint32_t *regs, uint32_t *stack, uint32_t pc);
 //void hook_CreateResLockEntry_70D(uint32_t *regs, uint32_t *stack, uint32_t pc);
 
+void hook_StartEDMAC_5D3(uint32_t *regs, uint32_t *stack, uint32_t pc);
+void hook_ConnectWriteEDMAC_5D3(uint32_t *regs, uint32_t *stack, uint32_t pc);
+void hook_ConnectReadEDMAC_5D3(uint32_t *regs, uint32_t *stack, uint32_t pc);
+void hook_SetEDMAC_5D3(uint32_t *regs, uint32_t *stack, uint32_t pc);
+
 // D78X cams have no expected signature; we must do more work in the function
 // to behave safely, but we have more flexibility.  We can't jump very far in
 // one instruction in Thumb, so it's harder to be as generic as the ARM hook code.

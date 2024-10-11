@@ -65,7 +65,9 @@ static unsigned int edmac_init()
             return -1;
     }
 
-    if (is_camera("70D", "1.1.2"))
+    if (is_camera("70D", "1.1.2")
+        || is_camera("5D3", "1.2.3")
+        )
     {
         // This cam has problems using take_semaphore() in some
         // contexts we want to log in.  Cause unknown.
@@ -148,6 +150,25 @@ static unsigned int edmac_init()
 //            patch_hook_function(0x37a90, // _SetEDMAC, higher one doesn't like being hooked?
 //                                0xe92d47f0, // orig_instr
                                 hook_SetEDMAC_70D,
+                                "Log SetEDMAC");
+    }
+    else if (is_camera("5D3", "1.2.3"))
+    {
+            patch_hook_function(0x12910, // StartEDMAC
+                                0xe92d47ff, // orig_instr
+                                hook_StartEDMAC_5D3,
+                                "Log StartEDMAC");
+            patch_hook_function(0x12768, // ConnectReadEDMAC
+                                0xe92d40fe, // orig_instr
+                                hook_ConnectReadEDMAC_5D3,
+                                "Log ConnectReadEDMAC");
+            patch_hook_function(0x126a4, // ConnectWriteEDMAC
+                                0xe92d403e, // orig_instr
+                                hook_ConnectWriteEDMAC_5D3,
+                                "Log ConnectWriteDMAC");
+            patch_hook_function(0x125f8, // SetEDMAC
+                                0xe92d40fe, // orig_instr
+                                hook_SetEDMAC_5D3,
                                 "Log SetEDMAC");
     }
     else
