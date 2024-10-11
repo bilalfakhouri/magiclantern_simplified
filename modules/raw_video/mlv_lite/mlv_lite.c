@@ -264,7 +264,7 @@ static int raw_digital_gain_ok()
 #define indicator_display (show_graph ? INDICATOR_RAW_BUFFER : get_global_draw() ? INDICATOR_IN_LVINFO : INDICATOR_ON_SCREEN)
 
 /* state variables */
-static struct semaphore * settings_sem = 0;
+static struct semaphore *settings_sem = NULL;
 
 /* fixme: resolution parameters are updated from multiple tasks */
 /* (though they do not run all at the same time) */
@@ -2560,6 +2560,9 @@ static void FAST edmac_spy_poll(int last_expiry, void* unused)
     SetHPTimerNextTick(last_expiry, LOG_INTERVAL, edmac_spy_poll, edmac_spy_poll, 0);
 
     /* this routine requires LCLK enabled */
+    // SJE FIXME this MMIO seems the same on 200D and old cams,
+    // but it should still be turned into a named constant or something.
+    // See usage near string "hSemSio[channel]" by both 200D and 5D3.
     if (!(MEM(0xC0400008) & 0x2))
     {
         return;
@@ -2741,9 +2744,9 @@ static void compress_task()
             edmac_active = 1;
             edmac_copy_rectangle_cbr_start(
                 (void*)out_ptr, fullSizeBuffer,
-                raw_info.pitch,
-                (skip_x+7)/8*BPP, skip_y/2*2,
-                res_x*BPP/8, 0, 0, res_x*BPP/8, res_y,
+                raw_info.pitch, (skip_x + 7)/8*BPP, skip_y/2*2,
+                res_x * BPP/8, 0, 0,
+                res_x * BPP/8, res_y,
                 &edmac_cbr_r, &edmac_cbr_w, NULL
             );
         }
@@ -2942,7 +2945,7 @@ static char* get_next_raw_movie_file_name()
     return filename;
 }
 
-static char* get_next_chunk_file_name(char* base_name, int chunk)
+static char* get_next_chunk_file_name(char *base_name, int chunk)
 {
     static char filename[100];
 
@@ -2969,9 +2972,11 @@ static ml_cbr_action h264_proxy_snd_rec_cbr (const char *event, void *data)
 }
 
 static REQUIRES(RawRecTask)
-void init_mlv_chunk_headers(struct raw_info * raw_info)
+void init_mlv_chunk_headers(struct raw_info *raw_info)
 {
     mlv_start_timestamp = mlv_set_timestamp(NULL, 0);
+    if (raw_info == NULL)
+        return;
     
     memset(&file_hdr, 0, sizeof(mlv_file_hdr_t));
     mlv_init_fileheader(&file_hdr);
@@ -3312,6 +3317,10 @@ void raw_video_rec_task()
 
     /* create output file */
     raw_movie_filename = get_next_raw_movie_file_name();
+    if (raw_movie_filename == NULL)
+    {
+        goto cleanup;
+    }
     chunk_filename = raw_movie_filename;
     f = FIO_CreateFile(raw_movie_filename);
     if (!f)
