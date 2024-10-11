@@ -4298,12 +4298,25 @@ static unsigned int raw_rec_init()
        raw_video_menu[0].help = "Record RAW video. Press SET to start.";
     }
 
+    // Hide features unsupported on modern cams
+    if (get_digic_version() > 5)
+    {
+        raw_video_menu->children[10].shidden = 1;
+        small_hacks = 0;
+
+        if (raw_video_menu->children[2].max > 2)
+        {
+            raw_video_menu->children[2].max = 2; // hide lossless options, which are 3, 4, 5
+            output_format = 0; // plain 14-bit, no lossless support on D678 (yet)
+        }
+    }
+
     menu_add("Movie", raw_video_menu, COUNT(raw_video_menu));
 
     /* hack: force proper alignment in menu */
     raw_video_menu->children->parent_menu->split_pos = 15;
 
-    lvinfo_add_items (info_items, COUNT(info_items));
+    lvinfo_add_items(info_items, COUNT(info_items));
 
     /* some cards may like this */
     if (warm_up)
