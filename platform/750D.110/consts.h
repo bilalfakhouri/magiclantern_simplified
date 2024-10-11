@@ -25,6 +25,8 @@
 #define MALLOC_STRUCT_ADDR 0x42358                    // from get_malloc_info, helper of malloc_info
 //#define MALLOC_FREE_MEMORY (MEM(MALLOC_STRUCT + 8) - MEM(MALLOC_STRUCT + 0x1C)) // "Total Size" - "Allocated Size"
 #define SRM_BUFFER_SIZE 0x296c000   /* print it from srm_malloc_cbr */
+#define SRM_MAX_BUF_COUNT_VIDEO_MODE 1 // FIXME: this has not been checked.  1 is the max on 200D
+
 
 /* high confidence */
 #define DRYOS_ASSERT_HANDLER        0x260b4               // from debug_assert function, hard to miss

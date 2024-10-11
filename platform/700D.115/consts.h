@@ -238,6 +238,7 @@
 #define MALLOC_STRUCT_ADDR 0x4b908
 //#define MALLOC_FREE_MEMORY (MEM(MALLOC_STRUCT + 8) - MEM(MALLOC_STRUCT + 0x1C)) // "Total Size" - "Allocated Size"
 #define SRM_BUFFER_SIZE 0x1F24000   /* print it from srm_malloc_cbr */
+#define SRM_MAX_BUF_COUNT_VIDEO_MODE 16 // probably not the true max, D45 cams all guess 16 and non-fatally fail if using too much
 
 //TODO: Check if this hack works again or not :(
 #define UNAVI_BASE (0x41948)

@@ -213,6 +213,7 @@ int get_lv_stopped_by_user();
 #define MALLOC_STRUCT_ADDR 0x22528
 //#define MALLOC_FREE_MEMORY (MEM(MALLOC_STRUCT + 24 + 4) - MEM(MALLOC_STRUCT + 24 + 8)) // "Total Size" - "Allocated Size"
 #define SRM_BUFFER_SIZE 0x25D0000   /* print it from srm_malloc_cbr */
+#define SRM_MAX_BUF_COUNT_VIDEO_MODE 16 // probably not the true max, D45 cams all guess 16 and non-fatally fail if using too much
 
 //~ max volume supported for beeps
 #define ASIF_MAX_VOL 5

@@ -85,6 +85,7 @@ void _shoot_free_suite(struct memSuite *hSuite)
     {
         // FreeMemoryResource is not null pointer safe on D678, crashes
         FreeMemoryResource(hSuite, freeCBR, 0);
+        hSuite = NULL;
     }
     take_semaphore_nc(free_sem, 0);
 }
@@ -100,6 +101,7 @@ static void allocCBR(unsigned int priv, struct memSuite *hSuite)
         {
             // FreeMemoryResource is not null pointer safe on D678, crashes
             FreeMemoryResource(hSuite, freeCBR_nowait, 0);
+            hSuite = NULL;
         }
         _free(suite_info);
         return;
@@ -451,7 +453,7 @@ static GUARDED_BY(mem_sem) struct
     void *buffer;
     int used: 1;
     int use_after_free: 1;
-} srm_buffers[16] = {{0}};
+} srm_buffers[SRM_MAX_BUF_COUNT_VIDEO_MODE] = {{0}};
 
 /* used to know when allocation was done */
 static struct semaphore *srm_alloc_sem = 0;
