@@ -92,7 +92,7 @@ struct edmac_info
 // for hardware reasons.  I sized it that way to allow easy
 // pointer increment, etc.
 #if defined(CONFIG_DIGIC_8X)
-// Digic 8 uses a new EDMAC controller.
+// Digic 8 changes the struct significantly
 struct edmac_mmio
 {
     uint32_t unk_01[0xb];
@@ -114,7 +114,7 @@ struct edmac_mmio
     uint32_t unk_04[0xb];
     uint32_t ram_addr;
     uint32_t unk_05[0x7];
-    uint32_t trasfer_mode;
+    uint32_t transfer_mode;
     uint32_t unk_06[0x3];
     uint32_t PackUnpackInfo;
     uint32_t unk_07[0xb]; // some of this is padding, but I don't know how much
