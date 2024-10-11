@@ -42,14 +42,12 @@ extern void early_printf(char *fmt, ...);
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_multishot_dma_copy(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
     DryosDebugMsg(0, 15, " ==== in ms_dma_c");
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
@@ -65,7 +63,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_multishot_dma_copy(
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_create_mem_to_mem_stuff(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
@@ -85,7 +82,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_create_mem_to_mem_s
     DryosDebugMsg(0, 15, " resIdCount: 0x%x", a3); // 0x3
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
@@ -101,7 +97,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_create_mem_to_mem_s
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_m2m_setup_copy(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
@@ -126,7 +121,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_m2m_setup_copy(void
     DryosDebugMsg(0, 15, "    yn: 0x%x", a0->yn);
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
@@ -142,7 +136,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_m2m_setup_copy(void
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_vfx_mem_to_mem(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
@@ -171,7 +164,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_vfx_mem_to_mem(void
     DryosDebugMsg(0, 15, " a3: 0x%x", a3);
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
@@ -190,7 +182,6 @@ extern void *memcpy_dryos(void *dst, const void *src, uint32_t count);
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_mpu_send(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
@@ -211,7 +202,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_mpu_send(void)
     early_printf("\n");
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
@@ -227,7 +217,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_mpu_send(void)
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_mpu_recv(void)
 {
     asm(
-        // push all
         "push { r0-r11, lr }\n"
     );
 
@@ -248,7 +237,6 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_mpu_recv(void)
     early_printf("\n");
 
     asm(
-        // pop all
         "pop { r0-r11, lr }\n"
 
         // do overwritten instructions
