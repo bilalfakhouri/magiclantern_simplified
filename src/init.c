@@ -504,7 +504,7 @@ static void my_big_init_task()
 
     _hold_your_horses = 0; // config read, other overriden tasks may start doing their job
 
-    // Create all of our auto-create tasks
+    // Create all of our auto-create tasks, defined via TASK_CREATE()
     extern struct task_create _tasks_start[];
     extern struct task_create _tasks_end[];
     struct task_create * task = _tasks_start;

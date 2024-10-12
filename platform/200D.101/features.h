@@ -53,15 +53,13 @@
 #define FEATURE_GLOBAL_DRAW
 #define FEATURE_CROPMARKS
 
-// Enable remapping ROM pages to RAM, before DryOS is initialised.
-// Requires MMU, obviously, but also needs safe memory located
-// that DryOS doesn't touch, for the remap process.
-// Can't use malloc this early on.
-//#define CONFIG_MMU_EARLY_REMAP
-
-// Enable remapping ROM pages to RAM, after DryOS is initialised.
+// Enable remapping ROM pages to RAM
 #define CONFIG_SGI_HANDLERS
 #define CONFIG_MMU_REMAP
+
+// ROM has a function to automatically determine a fast(er) speed for SD card.
+// TODO: possibly we could integrate sd_uhs.mo behind this same feature flag and menu.
+#define FEATURE_SD_AUTOTUNE
 
 // prevent ML attempting stack unwinding in some cases.
 // This does not yet work (assumes ARM, not Thumb).  Alex recommends
