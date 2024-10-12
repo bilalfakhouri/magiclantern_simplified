@@ -37,10 +37,10 @@ char *error_msg(int err)
     if (err & E_PATCH_NO_SGI_HANDLER)       STR_APPEND(msg, "NO_SGI_HANDLER,");
     if (err & E_PATCH_CPU1_SUSPEND_FAIL)    STR_APPEND(msg, "CPU1_SUSPEND_FAIL,");
     if (err & E_PATCH_MMU_NOT_INIT)         STR_APPEND(msg, "MMU_NOT_INIT,");
-    if (err & E_PATCH_BAD_MMU_PAGE)         STR_APPEND(msg, "E_PATCH_BAD_MMU_PAGE,");
-    if (err & E_PATCH_CANNOT_MALLOC)        STR_APPEND(msg, "E_PATCH_CANNOT_MALLOC,");
-    if (err & E_PATCH_MALFORMED)            STR_APPEND(msg, "E_PATCH_MALFORMED,");
-    if (err & E_PATCH_TOO_SMALL)            STR_APPEND(msg, "E_PATCH_TOO_SMALL,");
+    if (err & E_PATCH_BAD_MMU_PAGE)         STR_APPEND(msg, "BAD_MMU_PAGE,");
+    if (err & E_PATCH_CANNOT_MALLOC)        STR_APPEND(msg, "CANNOT_MALLOC,");
+    if (err & E_PATCH_MALFORMED)            STR_APPEND(msg, "MALFORMED,");
+    if (err & E_PATCH_TOO_SMALL)            STR_APPEND(msg, "TOO_SMALL,");
 
     if (err & E_UNPATCH_NOT_PATCHED)        STR_APPEND(msg, "NOT_PATCHED,");
     if (err & E_UNPATCH_OVERWRITTEN)        STR_APPEND(msg, "OVERWRITTEN,");
