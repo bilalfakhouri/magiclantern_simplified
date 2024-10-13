@@ -142,6 +142,11 @@ THUMB_FN(0xE04BCE75,  FIO_Flush)               // to be called after FIO_CloseFi
 //THUMB_FN(0xe0247f6e, set_SD_clock_frequency)
 THUMB_FN(0xe02b72e8, autotune_SD)
 
+// For removing 30 min mov/mp4 limitation.  Probably no need to call this,
+// the address is needed for patching, and stubs files are were we put addresses
+// of functions.
+THUMB_FN(0xe0402b70, get_max_millis_for_mov)
+
 /** GUI **/
 THUMB_FN(0xE00C5415,  GUI_Control)
 THUMB_FN(0xE04A7EF5,  SetGUIRequestMode)

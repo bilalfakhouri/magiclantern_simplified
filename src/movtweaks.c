@@ -18,6 +18,7 @@
 #include "beep.h"
 #include "lvinfo.h"
 #include "powersave.h"
+#include "patch.h"
 
 
 #ifdef FEATURE_REC_NOTIFY
@@ -340,25 +341,6 @@ void shutter_btn_rec_do(int rec)
 #endif
 
 int movie_was_stopped_by_set = 0;
-
-void
-movtweak_task_init()
-{
-#ifdef FEATURE_FORCE_LIVEVIEW
-    if (!lv && enable_liveview && is_movie_mode()
-        && (GUIMODE_MOVIE_PRESS_LV_TO_RESUME || GUIMODE_MOVIE_ENSURE_A_LENS_IS_ATTACHED))
-    {
-        force_liveview();
-    }
-#endif
-
-    extern int ml_started;
-    while (!ml_started) msleep(100);
-
-#ifdef FEATURE_EXPO_OVERRIDE
-    bv_auto_update();
-#endif
-}
 
 static int wait_for_lv_err_msg(int wait) // 1 = msg appeared, 0 = did not appear
 {
@@ -884,6 +866,120 @@ void smooth_iso_step()
 }
 #endif
 
+#ifdef FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+CONFIG_INT("movie.time_limit", mov_time_limit, 30 * 60);
+
+int get_mov_time_limit(void)
+{
+    return mov_time_limit;
+}
+
+static MENU_UPDATE_FUNC(print_mov_time_limit)
+{
+    if (mov_time_limit >= 60)
+    {
+        MENU_SET_VALUE("%d min", mov_time_limit / 60);
+    }
+    else
+    {
+        MENU_SET_VALUE("%d sec", mov_time_limit);
+    }
+}
+
+static void change_mov_time_limit(void* priv, int delta)
+{
+    // Time is in held in seconds.  Defaults to 30m.
+    // Allow upwards changes 10m at a time, max 90m (it is not determined what true max is).
+    // Allow downwards changes 5m at a time until 5m, then 1m, then 10s,
+    // 10s minimum.
+
+    // Lets be extra sure to avoid negatives since we're MMU patching ROM code
+    // with this value.
+    if (mov_time_limit <= 0)
+    {
+        mov_time_limit = 10;
+        return;
+    }
+
+    if (delta < 0)
+    {
+        if (mov_time_limit <= 10)
+            mov_time_limit = 10;
+        else if (mov_time_limit <= 60)
+            mov_time_limit -= 10;
+        else if (mov_time_limit <= 5 * 60)
+            mov_time_limit -= 60;
+        else if (mov_time_limit <= 30 * 60)
+            mov_time_limit -= 5 * 60;
+        else if (mov_time_limit <= 90 * 60)
+            mov_time_limit -= 10 * 60;
+    }
+    else if (delta > 0)
+    {
+        if (mov_time_limit >= 90 * 60)
+            mov_time_limit = 90 * 60;
+        else if (mov_time_limit >= 30 * 60)
+            mov_time_limit += 10 * 60;
+        else if (mov_time_limit >= 5 * 60)
+            mov_time_limit += 5 * 60;
+        else if (mov_time_limit >= 60)
+            mov_time_limit += 60;
+        else if (mov_time_limit >= 10)
+            mov_time_limit += 10;
+    }
+
+    // We have our target max time. If user requests 30 min,
+    // we revert to stock, which technically is 29m 59s.
+    // Otherwise, we patch in the new limit.
+
+    // remove possible Thumb bit from func addr
+    extern int get_max_millis_for_mov(void);
+    uint32_t patch_addr = ((uint32_t)get_max_millis_for_mov & (~0x1));
+    unpatch_memory(patch_addr);
+    if (mov_time_limit == 30 * 60)
+        return;
+
+    extern void __attribute__((noreturn,noinline,naked,aligned(4)))set_mov_time_limit(void);
+    extern uint8_t orig_get_max_millis_for_mov[];
+    struct patch patch = {};
+    uint8_t code_hook[8];
+    struct function_hook_patch f_patch = {
+        .patch_addr = patch_addr,
+        .target_function_addr = (uint32_t)set_mov_time_limit,
+        .description = "MOV time limit"
+    };
+    memcpy(f_patch.orig_content, orig_get_max_millis_for_mov, 8);
+
+    convert_f_patch_to_patch(&f_patch, &patch, code_hook);
+    apply_patches(&patch, 1);
+
+    return;
+}
+#endif // FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+
+void movtweak_task_init()
+{
+#ifdef FEATURE_FORCE_LIVEVIEW
+    if (!lv && enable_liveview && is_movie_mode()
+        && (GUIMODE_MOVIE_PRESS_LV_TO_RESUME || GUIMODE_MOVIE_ENSURE_A_LENS_IS_ATTACHED))
+    {
+        force_liveview();
+    }
+#endif
+
+    extern int ml_started;
+    while (!ml_started) msleep(100);
+
+#ifdef FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+    // This restores saved time limit from config file
+    change_mov_time_limit(NULL, 0);
+#endif
+
+#ifdef FEATURE_EXPO_OVERRIDE
+    bv_auto_update();
+#endif
+}
+
 static struct menu_entry mov_menus[] = {
     #ifdef FEATURE_MOVIE_RECORDING_50D
     {
@@ -938,6 +1034,17 @@ static struct menu_entry mov_menus[] = {
             MENU_EOL,
         },
     },
+    #endif
+    #ifdef FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+    {
+        .name = "MOV/MP4 time limit",
+        .priv = &mov_time_limit,
+        .update = print_mov_time_limit,
+        .select = change_mov_time_limit,
+        .min = 1,
+        .max = 90,
+        .help = "Change 29:59 movie recording limit",
+    }
     #endif
     #ifdef FEATURE_GRADUAL_EXPOSURE
     {

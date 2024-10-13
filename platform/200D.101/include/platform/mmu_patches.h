@@ -38,6 +38,30 @@ struct patch normal_data_patches[] =
 */
 };
 
+#ifdef FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+// The code that does the patch, in movtweaks.c,
+// requires orig ROM content for safety check before patch.
+uint8_t orig_get_max_millis_for_mov[8] = {0x10, 0xb5, 0x85, 0xf0, 0xaf, 0xfe, 0x01, 0x28};
+void __attribute__((noreturn,noinline,naked,aligned(4)))set_mov_time_limit(void)
+{
+    asm(
+        "push {r4, lr}\n"
+    );
+
+    extern int get_mov_time_limit(void); // in movtweaks.c
+    int limit_millis = get_mov_time_limit() * 1000;
+
+    asm(
+        // set new limit, in millis rounded to 1000
+        "mov r0, %0\n"
+        //"ldr r0, =0x1388\n" // 5s
+
+        // jump to func end (which does the pop {r4, pc})
+        "ldr pc, =0xe0402b81\n" : : "r"(limit_millis)
+    );
+}
+#endif
+
 extern void early_printf(char *fmt, ...);
 void __attribute__((noreturn,noinline,naked,aligned(4)))hook_multishot_dma_copy(void)
 {

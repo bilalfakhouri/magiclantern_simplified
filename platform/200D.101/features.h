@@ -61,6 +61,9 @@
 // TODO: possibly we could integrate sd_uhs.mo behind this same feature flag and menu.
 #define FEATURE_SD_AUTOTUNE
 
+// We are able to override the MOV / MP4 29:59 limit
+#define FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
+
 // prevent ML attempting stack unwinding in some cases.
 // This does not yet work (assumes ARM, not Thumb).  Alex recommends
 // a good looking fix:
