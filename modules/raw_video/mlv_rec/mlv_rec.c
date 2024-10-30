@@ -2515,6 +2515,10 @@ static void mlv_init_header()
     mlv_file_hdr.sourceFpsDenom = 1000;
 }
 
+/*
+- this block exactly specifies how to parse the raw data
+- settings apply to all VIDF blocks that come after RAWI's timestamp (this implies that RAWI must come before VIDF - at least the timestamp must be lower)
+*/
 static int32_t mlv_write_rawi(FILE* f, struct raw_info raw_info)
 {
     mlv_rawi_hdr_t rawi;
@@ -2540,6 +2544,9 @@ static int32_t mlv_write_rawi(FILE* f, struct raw_info raw_info)
     return mlv_write_hdr(f, (mlv_hdr_t *)&rawi);
 }
 
+/*
+Info relevant to crop modes
+*/
 static int32_t mlv_write_rawc(FILE* f)
 {
     mlv_rawc_hdr_t rawc;
@@ -3883,7 +3890,9 @@ PROP_HANDLER( PROP_CUSTOM_WB )
     mlv_update_wbal = 1;
 }
 
-
+/*
+- roll and pitch values read from acceleration sensor
+*/
 PROP_HANDLER(PROP_ROLLING_PITCHING_LEVEL)
 {
     struct rolling_pitching * orientation = (struct rolling_pitching *) buf;

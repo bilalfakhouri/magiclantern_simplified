@@ -62,6 +62,9 @@ void mlv_fill_lens(mlv_lens_hdr_t *hdr, uint64_t start_timestamp)
     strncpy((char *)hdr->lensSerial, buf, 32);
 }
 
+/*
+- all known information about the current white balance status
+*/
 void mlv_fill_wbal(mlv_wbal_hdr_t *hdr, uint64_t start_timestamp)
 {
     /* prepare header */
@@ -147,6 +150,10 @@ void mlv_fill_rtci(mlv_rtci_hdr_t *hdr, uint64_t start_timestamp)
     strncpy((char *)hdr->tm_zone, now.tm_zone, 8);
 }
 
+/*
+- contains camera identification data, like serial number and model identifier
+- the camera serial number is written as HEX STRING, so you have to convert it to a 64 bit INTEGER before displaying it
+*/
 void mlv_fill_idnt(mlv_idnt_hdr_t *hdr, uint64_t start_timestamp)
 {
     /* prepare header */
@@ -161,6 +168,10 @@ void mlv_fill_idnt(mlv_idnt_hdr_t *hdr, uint64_t start_timestamp)
     trace_write(raw_rec_trace_ctx, "[IDNT] cameraName: '%s' cameraModel: 0x%08X cameraSerial: '%s'", hdr->cameraName, hdr->cameraModel, hdr->cameraSerial);
 }
 
+/*
+- a string follows that may get used to identify ML and module versions
+- should follow the format "<module> <textual version info>"
+*/
 void mlv_build_vers(mlv_vers_hdr_t **hdr, uint64_t start_timestamp, const char *version_string)
 {
     int block_length = (strlen(version_string) + sizeof(mlv_vers_hdr_t) + 1 + 3) & ~3;
