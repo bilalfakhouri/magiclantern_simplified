@@ -83,7 +83,7 @@ void bitrate_write_mvr_config()
     }
 }
 
-#endif
+#endif // CONFIG_7D
 
 #ifdef FEATURE_NITRATE
 static struct mvr_config mvr_config_copy;
@@ -455,12 +455,15 @@ static CONFIG_INT("buffer.warning.level", buffer_warning_level, 70);
 static int warning = 0;
 int is_mvr_buffer_almost_full()
 {
-    if (NOT_RECORDING) return 0;
-    if (RECORDING_H264_STARTING) return 1;
+    if (NOT_RECORDING)
+        return 0;
+    if (RECORDING_H264_STARTING)
+        return 1;
     // 2
 
-    int ans = MVR_BUFFER_USAGE > (unsigned int)buffer_warning_level;
-    if (ans) warning = 1;
+    if (MVR_BUFFER_USAGE > (unsigned int)buffer_warning_level)
+        warning = 1;
+
     return warning;
 }
 
