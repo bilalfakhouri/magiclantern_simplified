@@ -138,8 +138,14 @@
 #define AF_BTN_HALFSHUTTER 0
 #define AF_BTN_STAR 2
 
-#define MVR_190_STRUCT (*(void**)0x6cb8) // Found via "NotifyLenseMove"
-#define div_maybe(a,b) ((a)/(b))
+// Insanely, this name differs per cam, and is never used in ML code directly,
+// only the derived defines.  I guess the "190" or whatever number may have
+// been the size of the allocation, but this has not be kept in sync.
+#define MVR_190_STRUCT (*(void**)0x6cb8) // Found via "NotifyLenseMove" or MVR_Initialize(),
+                                         // but note 200D has an init func for h264 and mjpeg.
+                                         // Probably ML code doesn't handle this correctly.
+                                         // This one is h264, mjpeg is at 6d18
+//#define div_maybe(a,b) ((a)/(b))
 // see mvrGetBufferUsage, which is not really safe to call => err70
 // macros copied from arm-console
 #define MVR_BUFFER_USAGE 70 // wrong, but needs to be non-zero to avoid a compiler warning
@@ -153,6 +159,8 @@
 #define MVR_FRAME_NUMBER (*(int*)(220 + MVR_190_STRUCT))
 //#define MVR_LAST_FRAME_SIZE (*(int*)(512 + MVR_752_STRUCT))
 #define MVR_BYTES_WRITTEN MEM((212 + MVR_190_STRUCT))
+#define MVR_TIME_LIMIT_NORMAL_FPS 0xe0402bfc
+#define MVR_TIME_LIMIT_HIGH_FPS 0xe0402c00
 
 #define IMGPLAY_ZOOM_LEVEL_ADDR (0x2CBC) //wrong, will be needed when overlays are enabled in play mode
 

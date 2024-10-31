@@ -867,12 +867,7 @@ void smooth_iso_step()
 #endif
 
 #ifdef FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
-CONFIG_INT("movie.time_limit", mov_time_limit, 30 * 60);
-
-int get_mov_time_limit(void)
-{
-    return mov_time_limit;
-}
+static CONFIG_INT("movie.time_limit", mov_time_limit, 30 * 60);
 
 static MENU_UPDATE_FUNC(print_mov_time_limit)
 {
@@ -884,6 +879,7 @@ static MENU_UPDATE_FUNC(print_mov_time_limit)
     {
         MENU_SET_VALUE("%d sec", mov_time_limit);
     }
+    MENU_SET_WARNING(MENU_WARN_ADVICE, entry->help2);
 }
 
 static void change_mov_time_limit(void* priv, int delta)
@@ -912,14 +908,18 @@ static void change_mov_time_limit(void* priv, int delta)
         else if (mov_time_limit <= 30 * 60)
             mov_time_limit -= 5 * 60;
         else if (mov_time_limit <= 90 * 60)
-            mov_time_limit -= 10 * 60;
+            mov_time_limit -= 15 * 60;
+        else if (mov_time_limit <= 180 * 60)
+            mov_time_limit -= 30 * 60;
     }
     else if (delta > 0)
     {
-        if (mov_time_limit >= 90 * 60)
-            mov_time_limit = 90 * 60;
+        if (mov_time_limit >= 180 * 60)
+            mov_time_limit = 180 * 60;
+        else if (mov_time_limit >= 90 * 60)
+            mov_time_limit += 30 * 60;
         else if (mov_time_limit >= 30 * 60)
-            mov_time_limit += 10 * 60;
+            mov_time_limit += 15 * 60;
         else if (mov_time_limit >= 5 * 60)
             mov_time_limit += 5 * 60;
         else if (mov_time_limit >= 60)
@@ -927,32 +927,36 @@ static void change_mov_time_limit(void* priv, int delta)
         else if (mov_time_limit >= 10)
             mov_time_limit += 10;
     }
+    // We deliberately fall through if delta == 0,
+    // to allow restoring saved settings without adjusting them.
 
     // We have our target max time. If user requests 30 min,
     // we revert to stock, which technically is 29m 59s.
     // Otherwise, we patch in the new limit.
-
-    // remove possible Thumb bit from func addr
-    extern int get_max_millis_for_mov(void);
-    uint32_t patch_addr = ((uint32_t)get_max_millis_for_mov & (~0x1));
-    unpatch_memory(patch_addr);
-    if (mov_time_limit == 30 * 60)
-        return;
-
-    extern void __attribute__((noreturn,noinline,naked,aligned(4)))set_mov_time_limit(void);
-    extern uint8_t orig_get_max_millis_for_mov[];
-    struct patch patch = {};
-    uint8_t code_hook[8];
-    struct function_hook_patch f_patch = {
-        .patch_addr = patch_addr,
-        .target_function_addr = (uint32_t)set_mov_time_limit,
-        .description = "MOV time limit"
+    struct patch patches[2] = {
+        {
+            .addr = (uint8_t *)MVR_TIME_LIMIT_NORMAL_FPS,
+            .old_value = 0x1b7358, // 29m59s
+            .new_value = mov_time_limit * 1000,
+            .size = 4,
+            .description = "MOV time limit"
+        },
+        {
+            .addr = (uint8_t *)MVR_TIME_LIMIT_HIGH_FPS,
+            .old_value = 0x6d9e8, // 7m29s
+            .new_value = mov_time_limit * 1000,
+            .size = 4,
+            .description = "MOV time limit, high FPS"
+        }
     };
-    memcpy(f_patch.orig_content, orig_get_max_millis_for_mov, 8);
+    unpatch_memory((uint32_t)patches[0].addr);
+    unpatch_memory((uint32_t)patches[1].addr);
+    if (mov_time_limit == 30 * 60)
+    {
+        return;
+    }
 
-    convert_f_patch_to_patch(&f_patch, &patch, code_hook);
-    apply_patches(&patch, 1);
-
+    apply_patches(patches, 2);
     return;
 }
 #endif // FEATURE_OVERRIDE_MOVIE_30_MIN_LIMIT
@@ -1042,8 +1046,9 @@ static struct menu_entry mov_menus[] = {
         .update = print_mov_time_limit,
         .select = change_mov_time_limit,
         .min = 1,
-        .max = 90,
+        .max = 180,
         .help = "Change 29:59 movie recording limit",
+        .help2 = "Too long recording makes empty files on ExFAT, ok on FAT32",
     }
     #endif
     #ifdef FEATURE_GRADUAL_EXPOSURE
