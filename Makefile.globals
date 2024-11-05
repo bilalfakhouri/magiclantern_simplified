@@ -84,36 +84,9 @@ CFLAGS += \
 
 CDEPS_FLAGS = -MP -MD
 
-
-# Build configuration - untested and debug stuff handy for devs
-# Can override in CLI:
-# make clean; make CONFIG_QEMU=y
-
-CONFIG_PTP          = n
-CONFIG_PTP_CHDK     = n
-CONFIG_PTP_ML       = n
-CONFIG_GDB          = n
-CONFIG_GDBSTUB      = n
-CONFIG_CONSOLE      = y
-CONFIG_DEBUGMSG     = 0
-CONFIG_CCACHE       = n
-CONFIG_TCC          = y
-CONFIG_MODULES      = y
-CONFIG_TINYPY       = n
-
-# Work in progress - attempt to emulate both Canon firmware and autoexec.bin
-# Emulation should work without having to enable CONFIG_QEMU, 
-# but this may enable workarounds for some corner cases,
-# or some extra tools or tests not meant to be run on the actual camera.
-CONFIG_QEMU         = n
-
 ifeq ($(CONFIG_QEMU),y)
     CFLAGS += -DCONFIG_QEMU
 endif
-
-# Work in progress - load ML as position-independent code (PIC)
-# SJE: this is abandoned as far as I can tell, but we need the option, to disable it.
-CONFIG_PIC          = n
 
 # Allow devs to make warnings break builds
 ifeq ($(FATAL_WARNINGS),y)

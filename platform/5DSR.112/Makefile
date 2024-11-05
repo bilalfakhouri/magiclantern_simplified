@@ -6,7 +6,7 @@ TOP_DIR = ../..
 AUTOEXEC_BASE = 0x800000
 FIR_BASE = 0x800120
 
-UPDATE_NAME_FIR = LOG_5DSR.FIR
+#UPDATE_NAME_FIR = LOG_5DSR.FIR
 
 #dummy-master-fir: dummy-master.o
 #	$(call build,LD,$(LD) \
@@ -21,9 +21,9 @@ UPDATE_NAME_FIR = LOG_5DSR.FIR
 #	$(call rm_files, $(UPDATE_NAME_FIR) *.bin dummy-master-fir)
 #
 #build_fir: autoexec-fir.bin dummy-master-fir.bin
-#	python ../../../dumper/build_fir7.py -r -s autoexec-fir.bin -m dummy-master-fir.bin ../../../dumper/$(CANON_NAME_FIR) $(UPDATE_NAME_FIR)
+#	python ../../../dumper/build_fir7.py -r -s autoexec-fir.bin -m dummy-master-fir.bin ../../../dumper/$(CANON_FIR) $(UPDATE_NAME_FIR)
 
-CANON_NAME_FIR = 5DSR0112.FIR
+#CANON_FIR = 5DSR0112.FIR
 FIRMWARE_ID = 0x80000401
 MAIN_FIRMWARE_ADDR = 0xFE0A0000
 

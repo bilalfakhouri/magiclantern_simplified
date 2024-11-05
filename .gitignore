@@ -59,6 +59,8 @@ doc/install-body.tex
 doc/install.wiki
 doc/menuindex.txt
 installer/*/*.lds
+installer/*/build
+installer/build
 doc/Cropmarks550D.png
 contrib/ptpcam/ptpcam
 contrib/make-bootable/exfat_sum

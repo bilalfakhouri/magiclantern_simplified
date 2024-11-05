@@ -1,10 +1,43 @@
 # This makefile can be used directly, to build zips for all the default enabled cams,
 # or invoked by platform/99D/Makefile to build one for one cam (including non-default).
+#
+# Note that there is significant code duplication (at the Make level) between
+# this platform/Makefile and installer/Makefile.
+# This greatly reduces complexity of the Make code at the expense of higher
+# maintenance cost (but we very rarely change the build system).
+# If you find bugs here, you should check if they exist there, too.
 TOP_DIR ?= ..
 
 SRC_DIR = $(TOP_DIR)/src
 BUILD_DIR = build
 PLATFORM_DIR = $(TOP_DIR)/platform
+
+# Some CONFIG_* settings for platform builds,
+# installer uses different settings.
+#
+# You can override like this:
+# make clean; make CONFIG_QEMU=y
+CONFIG_PTP      = n
+CONFIG_PTP_CHDK = n
+CONFIG_PTP_ML   = n
+CONFIG_GDB      = n
+CONFIG_GDBSTUB  = n
+CONFIG_CONSOLE  = y
+CONFIG_DEBUGMSG = 0
+CONFIG_CCACHE   = n
+CONFIG_TCC      = y
+CONFIG_MODULES  = y
+CONFIG_TINYPY   = n
+
+# Work in progress - attempt to emulate both Canon firmware and autoexec.bin
+# Emulation should work without having to enable CONFIG_QEMU,
+# but this may enable workarounds for some corner cases,
+# or some extra tools or tests not meant to be run on the actual camera.
+CONFIG_QEMU     = n
+
+# Work in progress - load ML as position-independent code (PIC)
+# SJE: this is abandoned as far as I can tell, but we need the option, to disable it.
+CONFIG_PIC      = n
 
 include $(TOP_DIR)/Makefile.globals
 
@@ -12,8 +45,8 @@ include $(TOP_DIR)/Makefile.globals
 ### but not modules-global
 CFLAGS += \
     -march=$(PLATFORM_ARCH) \
-    -I$(PLATFORM_DIR) \
-    -I$(PLATFORM_DIR)/include
+    -I$(PLATFORM_DIR)/$(MODEL_DIR) \
+    -I$(PLATFORM_DIR)/$(MODEL_DIR)/include
 CFLAGS += \
     -DCONFIG_$(MODEL)=1 \
     -DCONFIG_$(MODEL)_$(FW_VERSION)=1 \
@@ -90,6 +123,8 @@ else
     # If we're not running from platform/, we assume
     # we're running from platform/some_cam/ and
     # do the things we need for building one cam.
+    MODEL_DIR = $(MODEL).$(FW_VERSION)
+
     ifndef AUTOEXEC_BASE_ADDR
         AUTOEXEC_BASE_ADDR = 0x800000
     endif

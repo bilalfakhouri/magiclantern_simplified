@@ -4,7 +4,7 @@ MODEL = 7D_MASTER
 # is the primary core for our purposes.
 # Not sure, docs are quite bad.
 
-CANON_NAME_FIR = 7D000203.FIR
+#CANON_FIR = 7D000203.FIR
 # DryOSmemory map
 # RESTARTSTART is selected to be just above the end of the bss
 #

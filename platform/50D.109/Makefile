@@ -9,9 +9,6 @@ ML_BOOT_OBJ = boot-d45.o
 
 FIRMWARE_ID	= 0x80000261
 
-ifeq ($(FW_VERSION),109)
-CANON_NAME_FIR = 50D00109.FIR
-
 MAIN_FIRMWARE_ADDR = 0xFF810000
 PLATFORM_ARCH = armv5te
 
@@ -19,7 +16,6 @@ PLATFORM_ARCH = armv5te
 # RESTARTSTART is selected to be just above the end of the bss
 #
 RESTARTSTART = 0x4b000
-endif
 ML_AUDIO_OBJ = n
 
 ML_PICSTYLE_AUTO = n
