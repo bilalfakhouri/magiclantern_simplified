@@ -115,7 +115,7 @@ bootflag_write_bootblock( void )
     int ml_on_cf = (get_ml_card()->drive_letter[0] == 'A');
     extern struct cf_device ** cf_device_ptr[];
     struct cf_device * const dev = (struct cf_device *) (ml_on_cf ? cf_device_ptr[0][4] : sd_device[1]);
-#elif defined(CONFIG_R) || defined(CONFIG_200D)
+#elif defined(CONFIG_R) || defined(CONFIG_200D) || defined(CONFIG_6D2)
     // These only have one device struct.  Struct is 4 u32s,
     // first two are function pointers.  Check the "second" device
     // doesn't use the first two fields as function pointers.

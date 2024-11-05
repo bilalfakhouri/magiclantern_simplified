@@ -128,7 +128,7 @@ THUMB_FN(0xdf0031a3,  get_task_by_id) // called indirectly by task_create and fu
 THUMB_FN(0xdf004041,  _get_task_info_by_id)
 NSTUB(    0x4f40,  dm_names) // in DebugMsg, before the 1st loop target
 
-NSTUB(   0x20054,  sd_device) // written to in SD_DeviceCreate
+DATA_PTR(0x20054,  sd_device) // written to in SD_DeviceCreate
 NSTUB(    0x4800,  gui_main_struct) // See function using "Queue Clear event" string
                                     // There's a base of struct, and some refs to fields via offsets.
                                     // Find the right one.
@@ -190,7 +190,7 @@ THUMB_FN(0xe04aa70c,  CreateResLockEntry) // via xrefs to a pointer to "ResInfo"
 THUMB_FN(0xe04aa8f4,  LockEngineResources) //  Down a bit from CreateResLockEntry, start v similar but end is different. (see 0xe016a0ea)
 THUMB_FN(0xe076bd64,  ErrForCamera_handler) // ERR70, ERR80 etc (DlgErrForCamera.c, AJ_DIALOG.HANDLER_DlgErrForCamera.c)
 
-THUMB_FN(0xdf00d365,  fsuDecodePartitionTable) // SJE FIXME wrong - this function doesn't exist on 6D2.  See longer notes in 200D stubs.S.
+//THUMB_FN(0xdf00d365,  fsuDecodePartitionTable) // SJE FIXME wrong - this function doesn't exist on 6D2.  See longer notes in 200D stubs.S.
                                                // I think bootflags.c code should be changed so we do this manually for these cams.
 
 THUMB_FN(0xe06a5c70,  ShootOlcApp_handler) // near "StopShootOlcApp PopPalette(%d)"
