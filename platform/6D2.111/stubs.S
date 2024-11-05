@@ -89,6 +89,8 @@ THUMB_FN(0xe04e5b68, _FIO_RemoveFile)
 THUMB_FN(0xe04e646e, _FIO_RenameFile)
 THUMB_FN(0xe04e6718,  FIO_Flush)               // to be called after FIO_CloseFile?
 
+THUMB_FN(0xe030c358, autotune_SD)
+
 /** GUI **/
 THUMB_FN(0xe00dc458,  GUI_Control)
 THUMB_FN(0xe04cbfac,  SetGUIRequestMode)
