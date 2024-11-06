@@ -34,6 +34,7 @@ THUMB_FN(0xdf00d299,  bzero32)                /* zeros out a data structure */
 THUMB_FN(0xdf006515,  create_init_task)       /* low-level DryOS initialization */
 THUMB_FN(0xe0040225,  init_task)              /* USER_MEM size checking, dmSetup, termDriverInit, stdlibSetup etc */
 THUMB_FN(0xe06b07a4,  dcache_clean)           /* loop with MCR p15 c7,c10,1; DSB */
+THUMB_FN(0xe0013c60,  dcache_clean_multicore) /* loop writing to c11007b0, called after dcache_clean by copy_mmu_tables() */
 THUMB_FN(0xe06b0878,  icache_invalidate)      /* loop with MCR p15 c7,c5,1; c7,c1,6; c7,c1,0; ISB */
 
 /** Tasks **/
@@ -68,6 +69,19 @@ THUMB_FN(0xdf006e6c,  DryosDebugMsg)          /* lots of debug messages; format 
 
 /** DMA **/
 THUMB_FN(0xe01e565e,  dma_memcpy)
+
+/** MMU **/
+THUMB_FN(0xe0004a5a, change_mmu_tables) // Updates TTBRs and does TLB maintenance
+THUMB_FN(0xe0013b58, copy_mmu_tables) // copies from one location to another,
+                                      // fixing up addresses held in table start,
+                                      // and doing cache maintenance
+// slightly MMU related, used by CONFIG_MMU_REMAP
+ARM32_FN(0xe00163e0, memcpy_dryos) // useful in early contexts when we don't have
+                                   // dietlibc or newlib, and can't use stdio memcpy64 because
+                                   // that wants ML assert handling initialised.
+THUMB_FN(   0x2d952, _request_RPC) // allows cross-CPU function calls.  See long comment in 200D stubs.S
+THUMB_FN(   0x2d972,  clear_RPC_request) // reset the request to prevent calling
+                                         // the function forever
 
 /** Eventprocs (call by name) **/
 THUMB_FN(0xe04e7432,  call)                   /* many functions called by name (lv_start, lv_stop etc) */
