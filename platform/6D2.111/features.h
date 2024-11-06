@@ -1,5 +1,7 @@
 #define FEATURE_VRAM_RGBA
 
+#define FEATURE_DONT_CLICK_ME
+
 #define FEATURE_SCREENSHOT
 //#define FEATURE_SD_AUTOTUNE // exists, but doesn't seem to improve over stock speeds
 
