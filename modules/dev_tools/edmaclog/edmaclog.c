@@ -58,12 +58,9 @@ static struct menu_entry edmac_menu[] =
 static unsigned int edmac_init()
 {
     static uint8_t *log_buf = NULL;
+    log_buf = malloc(MIN_LOG_BUF_SIZE);
     if (log_buf == NULL)
-    {
-        log_buf = malloc(MIN_LOG_BUF_SIZE);
-        if (log_buf == NULL)
-            return -1;
-    }
+        return -1;
 
     if (is_camera("70D", "1.1.2")
         || is_camera("5D3", "1.2.3")
