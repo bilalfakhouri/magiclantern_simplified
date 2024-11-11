@@ -2,6 +2,7 @@
  * 
  */
 
+// 5D3 1.1.3 hard-coded, see adtg_gui.c for some other cams
 #define ADTG_WRITE_FUNC   0x11644
 #define CMOS_WRITE_FUNC   0x119CC
 #define CMOS16_WRITE_FUNC 0x11AB8
