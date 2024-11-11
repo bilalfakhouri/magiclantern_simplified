@@ -5,7 +5,7 @@
 
 // ADTG logging
 
-void __attribute__((noreturn,noinline,naked,aligned(4)))hook_CMOS_write_200D(void)
+void __attribute__((noreturn,noinline,naked,aligned(4)))hook_CMOS_write_6D2(void)
 {
     asm(
         "push { r0-r11, lr }\n"
@@ -25,13 +25,12 @@ void __attribute__((noreturn,noinline,naked,aligned(4)))hook_CMOS_write_200D(voi
 
         // do overwritten instructions
         //"ldr   r2, =0xa5c30\n"
-        "push  {r3, r4, r5, r6, r7, r8, r9, r10, r11, lr}\n"
+        "push  {r2,r3,r4,r5,r6,r7,r8,r9,r10,r11,r12,lr}\n"
         "mov   r4, r0\n"
-        "ldr   r5, =0x973e8\n"
+        "ldr   r7, =0x91a38\n"
         
-
         // jump back
-        "ldr pc, =0xe0342577\n"
+        "ldr pc, =0xe053cdcd\n"
     );
 }
 
