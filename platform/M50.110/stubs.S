@@ -108,7 +108,9 @@ THUMB_FN(0xe001eca4, copy_mmu_tables) // copies from one location to another,
                                       // and doing cache maintenance
 
 // slightly MMU related, used by CONFIG_MMU_REMAP
-ARM32_FN(0xe001930c, memcpy_dryos) // useful in early contexts when we don't have
+// bilal: be aware, memcpy_dryos address might
+// be different on other M50 roms !!
+ARM32_FN(0xe0019590, memcpy_dryos) // useful in early contexts when we don't have
                                    // dietlibc or newlib, and can't use stdio memcpy64 because
                                    // that wants ML assert handling initialised.
 

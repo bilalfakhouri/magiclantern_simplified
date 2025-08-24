@@ -24,9 +24,8 @@
 #define FEATURE_CROPMARKS
 
 // Enable remapping ROM pages to RAM
-// Doesn't work yet
-//#define CONFIG_SGI_HANDLERS
-//#define CONFIG_MMU_REMAP
+#define CONFIG_SGI_HANDLERS
+#define CONFIG_MMU_REMAP
 
 //~kitor: add bootdisk menu for easier testing on foreign camera :)
 #define FEATURE_BOOTFLAG_MENU
