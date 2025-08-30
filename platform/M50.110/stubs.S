@@ -263,7 +263,9 @@ DATA_PTR(   0x139b8,  LiveViewApp_dialog)                   // in StartLiveViewA
 //DATA_PTR( 0x1c434,  LiveViewShutterApp_dialog)            // in StartLiveViewShutterApp(), not sure if needed
 //DATA_PTR( 0x14fa8,  PlayMovieGuideApp_dialog)             // in StartPlayMovieGuideApp()
 
-
+/** Not used **/
+//THUMB_FN(0xe044fe7a, _get_fps_register_b)
+//THUMB_FN(0xe044fefa, _get_shutter_speed)
 
 /**
  * STUFF BELOW IS WRONG!

@@ -322,8 +322,23 @@ static void fps_read_current_timer_values();
     // Variable, like 200D?  Different base clock though.
 
 #elif defined(CONFIG_DIGIC_VIII) || defined(CONFIG_DIGIC_X)
-    #define TG_FREQ_BASE 32000000 //copy from 700D
     #define FPS_TIMER_A_MIN (fps_timer_a_orig)
+    #if defined(CONFIG_M50)
+    // 1080p24: 24 x 0x2D1 x 0x617 = 26.977 MHz
+    // 1080p25: 25 x 0x2D1 x 0x5D7 = 26.947 MHz
+    // 1080p30: 30 x 0x2D1 x 0x4DF = 26.973 MHz
+    // 1080p50: 50 x 0x2D1 x 0x2EB = 26.929 MHz
+    // 1080p60: 60 x 0x2D1 x 0x26F = 26.951 MHz
+
+    // 720p100: 100 x 0x215 x 0x1F8 = 26.863 MHz
+    // 720p120: 120 x 0x215 x 0x1A4 = 26.863 MHz
+
+    // 4K25: 25 x 0x1C5 x 0x94A = 26.931 MHz
+    // 4K24: 24 x 0x1C5 x 0x9AF = 26.952 MHz
+	#define TG_FREQ_BASE 27000000
+	#else
+    #define TG_FREQ_BASE 32000000 //copy from 700D
+    #endif
 #elif defined(CONFIG_100D)
     #define TG_FREQ_BASE 32000000
     #define FPS_TIMER_A_MIN (ZOOM ? 724 : MV1080CROP ? 540 : 520)
