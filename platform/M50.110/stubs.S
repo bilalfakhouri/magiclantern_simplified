@@ -217,6 +217,40 @@ THUMB_FN(0xe055374c,  CreateMemoryChunk)                    // called from Creat
 //THUMB_FN(0xe056da22,  SRM_FreeMemoryResourceFor1stJob)      // find refs to "pMessage", there are several similar looking functions using it,
                                                             // Matched to 200D stub, just buffer size differs (0x34 vs 0x30)
 
+/** For new EDMAC API **/
+THUMB_FN(0xe0557ece, PwrMng_WakeSubChips)
+THUMB_FN(0xe0557efc, PwrMng_SuspendSubChips)
+
+// EFsVcopy path DNE on SX740 / M50, including m2m esub1 stuff
+// It has esub5 variant, not usable for us (?) but at least makes easy to find the stubs
+//THUMB_FN(, MemToMemE1_RegisterCBR)
+//THUMB_FN(, MemToMemE1_ResetCBR)
+//THUMB_FN(, MemToMemE1_ClearEdmacCBR)
+THUMB_FN(0xe054a9ae, edmac_set_address) 
+THUMB_FN(0xe054a9ba, edmac_set_size) 
+THUMB_FN(0xe054aeb0, edmac_set_transfer_mode) 
+THUMB_FN(0xe054a7cc, StartEDmac_maybe) 
+THUMB_FN(0xe0549e52, ConnectReadEDmac_maybe) 
+
+//THUMB_FN(, MemToMemE1_SetupEDMAC)
+THUMB_FN(0xe0549e8c, edmac_reset_channel) 
+THUMB_FN(0xe054a35c, edmac_reset_boomer_vdkick) 
+THUMB_FN(0xe054a3da, edmac_select_boomer) 
+THUMB_FN(0xe0549f76, RegisterEDmacCompleteCBR) 
+THUMB_FN(0xe054a30e, UnregisterEDmacCompleteCBR) 
+THUMB_FN(0xe054a4b2, edmac_reset_packunpack_mode) 
+THUMB_FN(0xe054a46e, edmac_stop_boomer_maybe) 
+
+THUMB_FN(0xe055819e, CreateResLockEntry) 
+THUMB_FN(0xe0558386, LockEngineResources) 
+THUMB_FN(0xe0558426, UnLockEngineResources) 
+
+THUMB_FN(0xe057754a, CreateEventFlag_strictly) 
+THUMB_FN(0xe05531be, DeleteEventFlag) 
+THUMB_FN(0xe05532dc, WaitForAnyEventFlag) 
+THUMB_FN(0xe05534d8, SetEventFlag) 
+THUMB_FN(0xe0553506, ClearEventFlag) 
+
 /** Uncategorized **/
 DATA_PTR(   0x115b8,  sd_device)                            // From function that references "SD_DeviceCreate:"
 THUMB_FN(0xe0637210,  _LoadCalendarFromRTC)                 // "Private" as it now has more arguments, needs a wrapper.

@@ -98,16 +98,6 @@ void AbortEDmac(unsigned int channel)
    return;
 }
 
-void RegisterEDmacCompleteCBR(int channel, void (*cbr)(void*), void* cbr_ctx)
-{
-   return;
-}
-
-void UnregisterEDmacCompleteCBR(int channel)
-{
-   return;
-}
-
 void RegisterEDmacAbortCBR(int channel, void (*cbr)(void*), void* cbr_ctx)
 {
    return;
@@ -133,17 +123,22 @@ void _EngDrvOut(uint32_t reg, uint32_t value)
    return;
 }
 
+// No shamem on D8, reads are done directly.
 uint32_t shamem_read(uint32_t addr)
 {
-   return 0;
+     if(addr >> 28 != 0xD)
+     {
+       // For now block any attempts to r/w outside 0xDxxxxxxx range.
+       // Those are likely just wrong, coming from legacy code.
+       // Log them instead.
+      DryosDebugMsg(0, 15, "shamem_read from %08x - aborted", addr);
+      return 0;
+     }
+
+     return *(uintptr_t*)addr;
 }
 
 void _engio_write(uint32_t* reg_list)
 {
    return;
-}
-
-unsigned int UnLockEngineResources(struct LockEntry *lockEntry)
-{
-   return 0;
 }
