@@ -138,6 +138,24 @@ uint32_t shamem_read(uint32_t addr)
      return *(uintptr_t*)addr;
 }
 
+// SRM doesnt, work, substitute those two.
+struct memSuite * srm_malloc_suite(int num_requested_buffers)
+{
+    return 0; // always fail
+}
+
+void srm_free_suite(struct memSuite * suite)
+{
+    return;
+}
+
+// ErrCardForLVApp_handler DNE on R... maybe because it is always LV?
+// We need only address of that handler so this should do.
+void ErrCardForLVApp_handler()
+{
+    return;
+}
+
 void _engio_write(uint32_t* reg_list)
 {
    return;

@@ -1051,6 +1051,12 @@ int raw_update_params_work()
         skip_right  = zoom ? 0 : 8;
         #endif
 
+        #ifdef CONFIG_M50
+        // FIXME: add 4K skip values, these are for 1080p
+        skip_top    = 34;
+        skip_left   = 88;
+        #endif
+
         dbg_printf("LV raw buffer: %x (%dx%d)\n", raw_info.buffer, width, height);
         dbg_printf("Skip left:%d right:%d top:%d bottom:%d\n", skip_left, skip_right, skip_top, skip_bottom);
 #endif
@@ -2623,6 +2629,17 @@ void raw_lv_request_bpp(int bpp)
 //            MODE_12BIT = 0x300, // likely 8 or 16.  Alternates high and low values, could fit bayer or UYUV etc
 //            MODE_12BIT = 0x2000, // possibly 24 bit?
         };
+    #elif defined(CONFIG_DIGIC_VIII)
+        enum { // wrong, copy of 200d
+            MODE_16BIT = 0x20,
+            MODE_14BIT = 0x20,
+            MODE_12BIT = 0x10,
+            MODE_10BIT =  0x0,
+        };
+	    // idk how this works on D8. Set constant, but immediately return.
+	    const uint32_t PACK32_MODE = 0xd0008094; // wrong, copy of 200d
+        give_semaphore(raw_sem);
+        return;
     #endif
     const uint32_t modes[] = { MODE_10BIT, MODE_12BIT, MODE_14BIT, MODE_16BIT};
 

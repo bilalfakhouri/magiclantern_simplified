@@ -23,6 +23,10 @@
 #define FEATURE_GLOBAL_DRAW
 #define FEATURE_CROPMARKS
 
+// These two needed to enable mlv_lite
+#define FEATURE_PICSTYLE
+#define CONFIG_RAW_LIVEVIEW
+
 // Enable remapping ROM pages to RAM
 #define CONFIG_SGI_HANDLERS
 #define CONFIG_MMU_REMAP

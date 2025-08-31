@@ -192,6 +192,15 @@ void* edmac_copy_rectangle_cbr_start(void *dst, void *src,
         sync_caches();
     }
 
+    /* create a memory suite from a already existing (continuous) memory block with given size.                  */
+    /* note: src_adjusted, dst_adjusted are necessary to crop black borders, original code is:                   */
+    /* uint32_t src_adjusted = ((uint32_t)src & 0x1FFFFFFF) + src_x + src_y * src_width;                         */
+    /* uint32_t dst_adjusted = ((uint32_t)dst & 0x1FFFFFFF) + dst_x + dst_y * dst_width;                         */
+    /* which gave courrpted frames on M5O, probably also on D8 cams, it's CACHEABLE vs UNCACHEABLE memory issue? */
+
+    uint32_t src_adjusted = ((uint32_t)src) + src_x + src_y * src_width;
+    uint32_t dst_adjusted = ((uint32_t)dst) + dst_x + dst_y * dst_width;
+
     struct edmac_info src_region = {
         .off1b = src_width - w,
         .xb = w,
@@ -204,7 +213,7 @@ void* edmac_copy_rectangle_cbr_start(void *dst, void *src,
         .yb = h - 1,
     };
 
-    mem2mem_emdac_copy_d8(src, dst, &src_region, &dst_region);
+    mem2mem_emdac_copy_d8((void*)src_adjusted, (void*)dst_adjusted, &src_region, &dst_region);
     cbr_w(NULL); // clears edmac_active, we have no CBR to do this
     return dst;
 }

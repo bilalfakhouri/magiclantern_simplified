@@ -25,6 +25,8 @@
 
 #define BGMT_PRESS_HALFSHUTTER       0x5B //unpress 0x5C
 
+#define BGMT_REC                     0x20  //0x21 UNPRESS
+
 /** WRONG, MAPPED TO M.Fn for now!
  *  Trash button is shared with DOWN on M50. IN LV mode it will not send any
  *  keycode by default. Keycode changes with assigned function in C.Fn.
