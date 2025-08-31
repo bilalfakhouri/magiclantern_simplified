@@ -36,7 +36,7 @@ THUMB_FN(0xE00400FC,  cstart)                               /* calls bzero32 and
 THUMB_FN(0xE0578D64,  bzero32)                              /* zeros out a data structure */
 THUMB_FN(0xE0143CFC,  create_init_task)                     /* low-level DryOS initialization */
 THUMB_FN(0xE05777D0,  dcache_clean)                         /* loop with MCR p15 c7,c10,1; DSB */
-THUMB_FN(0xe001ee68,  dcache_clean_multicore)               /* loop writing to c11007b0, called after dcache_clean by copy_mmu_tables() */
+THUMB_FN(0xe00ea6f4,  dcache_clean_multicore)               /* loop writing to c11007b0, called after dcache_clean by copy_mmu_tables() */
 THUMB_FN(0xE05778A4,  icache_invalidate)                    /* loop with MCR p15 c7,c5,1; c7,c1,6; c7,c1,0; ISB */
 THUMB_FN(0xE0040224,  init_task)                            /* USER_MEM size checking, dmSetup, termDriverInit, stdlibSetup etc */
 
@@ -102,17 +102,13 @@ THUMB_FN(0xdf002c52,  clear_RPC_request) // reset the request to prevent calling
                                          // the function forever
 
 // MMU related, required by CONFIG_MMU features
-THUMB_FN(0xe0004ab6, change_mmu_tables) // Updates TTBRs and does TLB maintenance
-THUMB_FN(0xe001eca4, copy_mmu_tables) // copies from one location to another,
+THUMB_FN(0xe05772d6, change_mmu_tables) // Updates TTBRs and does TLB maintenance
+//THUMB_FN(0xe001eca4, copy_mmu_tables) // copies from one location to another,
                                       // fixing up addresses held in table start,
                                       // and doing cache maintenance
 
 // slightly MMU related, used by CONFIG_MMU_REMAP
-// bilal: be aware, memcpy_dryos address might
-// be different on other M50 roms !!
-ARM32_FN(0xe0019590, memcpy_dryos) // useful in early contexts when we don't have
-                                   // dietlibc or newlib, and can't use stdio memcpy64 because
-                                   // that wants ML assert handling initialised.
+THUMB_FN(0xe065e998, memcpy_dryos) // See 200D stubs for long comment on finding a good memcpy.
 
 /** Memory allocation **/
 THUMB_FN(0xE055B094, _AllocateMemory)
