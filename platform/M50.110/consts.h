@@ -120,6 +120,7 @@
 #define YUV422_HD_BUFFER_DMA_ADDR 0x0 // it expects this to be shamem_read(some_DMA_ADDR)
 
 #define RAW_LV_EDMAC_CHANNEL_ADDR 0xd0420200 // channel 3. EDOMAIN_EDMAC_1_WR_M1
+#define PackMode_Field_ADDR_For_RAW_LV_EDMAC_CHANNEL 0x127B4 // channel 3. PackMode (bitdepth) field
 #define SHAD_GAIN_REGISTER        0xd0008030 // WRONG, taken directly from 200D code
 
 /* WRONG! */

@@ -2630,29 +2630,34 @@ void raw_lv_request_bpp(int bpp)
 //            MODE_12BIT = 0x2000, // possibly 24 bit?
         };
     #elif defined(CONFIG_DIGIC_VIII)
-        enum { // wrong, copy of 200d
-            MODE_16BIT = 0x20,
-            MODE_14BIT = 0x20,
-            MODE_12BIT = 0x10,
-            MODE_10BIT =  0x0,
+        enum {
+            MODE_16BIT = 0x2, // unknown, copying 14 bit for now
+            MODE_14BIT = 0x2, // default value, 14-bit
+            MODE_12BIT = 0x1, //                12-bit
+            MODE_10BIT = 0x0, //                10-bit
         };
-	    // idk how this works on D8. Set constant, but immediately return.
-	    const uint32_t PACK32_MODE = 0xd0008094; // wrong, copy of 200d
-        give_semaphore(raw_sem);
-        return;
+	    const uint32_t PACK32_MODE = PackMode_Field_ADDR_For_RAW_LV_EDMAC_CHANNEL;
     #endif
     const uint32_t modes[] = { MODE_10BIT, MODE_12BIT, MODE_14BIT, MODE_16BIT};
 
     int bpp_index = COERCE((bpp-10)/2, 0, COUNT(modes));
 
+    #if defined(CONFIG_DIGIC_VIII)
+    if (PACK32_MODE == modes[bpp_index])
+    #else
     if (shamem_read(PACK32_MODE) == modes[bpp_index])
+    #endif
     {
         /* no change needed */
         ASSERT(raw_info.bits_per_pixel == bpp);
     }
     else
     {
+        #if defined(CONFIG_DIGIC_VIII)
+        MEM(PACK32_MODE) = modes[bpp_index];
+        #else
         EngDrvOut(PACK32_MODE, modes[bpp_index]);
+        #endif
         raw_info.bits_per_pixel = bpp;
         raw_info.pitch = raw_info.width * raw_info.bits_per_pixel / 8;
         raw_info.frame_size = raw_info.pitch * raw_info.height;
