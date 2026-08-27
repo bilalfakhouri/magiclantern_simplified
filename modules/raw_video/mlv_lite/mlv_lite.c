@@ -2024,6 +2024,12 @@ unsigned int raw_rec_polling_cbr(unsigned int unused)
         return 0;
     }
 
+    /* reallocate if no buffer is allocated while idle. This happens on M50 after stopping recording ("No memory suites" keeps screaming) */
+    if (!shoot_mem_suite && !srm_mem_suite && (RAW_IS_IDLE || RAW_IS_PREPARING))
+    {
+        realloc = 1;
+    }
+
     /* reallocate buffers if needed (only if not recording) */
     if (realloc && (RAW_IS_IDLE || RAW_IS_PREPARING) && gui_state == GUISTATE_IDLE)
     {
