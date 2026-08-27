@@ -31,6 +31,9 @@
 // include edmac-d8.c from platform dir
 #define CONFIG_EDMAC_MEMCPY_D8
 
+/* patch raw buffer parameters in Canon code */
+#define CONFIG_EDMAC_RAW_PATCH
+
 /* hooking EFV_STATE ends with EvfCap crashes, requires investigation */
 //#define CONFIG_STATE_OBJECT_HOOKS
 
