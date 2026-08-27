@@ -4385,7 +4385,7 @@ static unsigned int raw_rec_init()
         if (raw_video_menu->children[2].max > 2)
         {
             raw_video_menu->children[2].max = 2; // hide lossless options, which are 3, 4, 5
-            output_format = 0; // plain 14-bit, no lossless support on D4, D678 (yet)
+            if (output_format > 2) output_format = 0; // plain 14-bit, no lossless support on D4, D678 (yet)
         }
     }
 
