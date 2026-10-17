@@ -155,10 +155,18 @@ inline uint8_t *bmp_vram_raw() {
     #if defined(CONFIG_DIGIC_X) && !defined(CONFIG_COMPOSITOR_DEDICATED_LAYER)
     // kitor FIXME: R5 has different layer size and position...
     // this is a temporary integration before a proper one will be developed
-    #define BMP_W_PLUS   872
-    #define BMP_W_MINUS -152
-    #define BMP_H_PLUS   510
-    #define BMP_H_MINUS -30
+    #if defined(CONFIG_R8)
+        #define BMP_W_PLUS   1090
+        #define BMP_W_MINUS -190
+        #define BMP_H_PLUS   480
+        #define BMP_H_MINUS -37
+    #else
+        // R5
+        #define BMP_W_PLUS   872
+        #define BMP_W_MINUS -152
+        #define BMP_H_PLUS   510
+        #define BMP_H_MINUS -30
+    #endif
     #define BMP_LAYER_WIDTH 2048
     #else
     // kitor: Still works for RGB buffers in 200D and EOSR

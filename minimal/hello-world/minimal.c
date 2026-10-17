@@ -44,7 +44,7 @@ void refresh_yuv_from_rgb(void)
         return;
     }
 
-#ifdef CONFIG_R5
+#if defined(CONFIG_R5) || defined(CONFIG_R8)
 #define DEST_BUF_WIDTH 2048
     // kitor FIXME this is the loop altered to work with 2048x1080 layers.
     // Resolution needs confirmation on R6.
