@@ -3919,6 +3919,11 @@ BMP_LOCK (
  *       with (PlayMain, ShootOlcApp, PlayMovieGuideApp?)
  */
     extern struct dialog* LiveViewApp_dialog;
+    
+    /* LiveViewApp_dialog stub isn't a dialog on R8, check stub.S for more info, function seems changed on R8 */
+    #ifdef CONFIG_R8
+    clrscr();
+    #else
     if(LiveViewApp_dialog)
     {
         dialog_redraw(LiveViewApp_dialog); // try to redraw (this has semaphores for winsys)
@@ -3927,6 +3932,7 @@ BMP_LOCK (
     {
         clrscr(); // out of luck, fallback
     }
+    #endif
 #else
 
     //~ if (disable_redraw) 

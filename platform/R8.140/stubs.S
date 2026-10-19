@@ -226,7 +226,20 @@ THUMB_FN(0xe9999999,  PlayMovieGuideApp_handler)            // PlayMovieGuideApp
  */
 //DATA_PTR( 0x1719c,  PlayMain_dialog)                      // via debug string "PlayMain_StartPlayMain" // R5
 //DATA_PTR( 0x22770,  ShootOlcApp_dialog)                   // via debug string "StartShootOlcApp PushPalette(%d)" // R5
-DATA_PTR(   0x153b4,  LiveViewApp_dialog)                   // via debug string "StartLiveViewApp(%#x)"
+
+/* LiveViewApp_dialog is not a dialog on R8:
+
+redraw() just queues MLEV_REDRAW. _redraw_do() then runs on this DIGIC 6/7/8/X path:
+if (LiveViewApp_dialog) dialog_redraw(LiveViewApp_dialog);
+
+-That path is taken by the NotifyBox timeout and by closing the menu.
+-The R8 stub is 0x153B4. StartLiveViewApp (0xE064AB42 onwards) stores its result there from 0xE0AECBDA, which mallocs a 32-byte node and links it into gui_task_list. So that value is a struct gui_task *, whose priv is 0.
+-On R5 the same slot holds a real dialog_create() result.
+-R8’s slot also uses a different convention: 0xE0647414 treats bit 0 set as “not active” instead of NULL.
+-R8’s dialog_redraw (0xE082C864) checks *(u32*)dialog == MEM(0x18A04+4). A gui_task fails that check and trips the assert at WindowSystem::Dialog.c line 0x29B. An odd sentinel value would fault outright. */
+
+DATA_PTR(   0x153b4,  LiveViewApp_dialog)                   // via debug string "StartLiveViewApp(%#x)" // This is not real LiveViewApp_dialog
+
 //DATA_PTR( 0x21c60,  LiveViewShutterApp_dialog)            // via debug string "StartLiveViewShutterApp" // R5
 //DATA_PTR(      0x,  PlayMovieGuideApp_dialog)             // PlayMovieGuideApp DNE on R5 // R5
 
