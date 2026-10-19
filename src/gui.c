@@ -98,11 +98,20 @@ struct gui_main_struct {
   uint32_t        off_0x2c;
   struct msg_queue *    msg_queue;         // off_0x30;
   struct msg_queue *    off_0x34;          // off_0x34;
-  struct msg_queue *    msg_queue_550d;    // off_0x38;
-  uint32_t        off_0x3c;
+  struct msg_queue *    msg_queue_550d;    // off_0x38;  /* GuiMainQueue on R8 */
+  uint32_t        off_0x3c;                // off_0x3c;  /* GuiMainQueuePool on R8 (struct msg_queue *) */
 };
 
 extern struct gui_main_struct gui_main_struct;
+
+/* R8 messages come from a pool. gui_enqueue_message() takes a free buffer from
+ * GuiMainQueuePool and posts it to GuiMainQueue; gui_main_task must put it back after dispatching.
+ */
+#ifdef CONFIG_R8
+#define GUI_MSG_DONE(e) msg_queue_post((struct msg_queue *) gui_main_struct.off_0x3c, (uint32_t) (e))
+#else
+#define GUI_MSG_DONE(e)
+#endif
 
 void ml_gui_main_task()
 {
@@ -118,6 +127,8 @@ void ml_gui_main_task()
         #if defined(CONFIG_550D) || defined(CONFIG_7D)
         msg_queue_receive(gui_main_struct.msg_queue_550d, &event, 0);
         gui_main_struct.counter_550d--;
+        #elif defined(CONFIG_R8)
+        msg_queue_receive(gui_main_struct.msg_queue_550d, &event, 0);     /* GuiMainQueue, no counter on R8 */
         #elif defined(CONFIG_R) || defined(CONFIG_RP) || defined(CONFIG_850D) || defined (CONFIG_R5) || defined(CONFIG_SX70) || defined(CONFIG_M6II)
         msg_queue_receive(gui_main_struct.msg_queue_eosr, &event, 0);
         gui_main_struct.counter_550d--;
@@ -141,12 +152,14 @@ void ml_gui_main_task()
             if (event->type == 0)
             {
                 if (handle_buttons(event) == 0) { // ML button/event handler
+                    GUI_MSG_DONE(event);
                     continue;
                 }
             }
             else
             {
                 if (handle_other_events(event) == 0) {
+                    GUI_MSG_DONE(event);
                     continue;
                 }
             }
@@ -157,16 +170,20 @@ void ml_gui_main_task()
         }
 
         if (event->type == 0 && event->param < 0) {
+            GUI_MSG_DONE(event);
             continue;           /* do not pass internal ML events to Canon code */
         }
 
         if ((index >= GMT_NFUNCS) || (index < 0)) {
+            GUI_MSG_DONE(event);
             continue;
         }
 
         void(*f)(struct event *) = funcs[index];
         if (f != NULL)
             f(event);
+
+        GUI_MSG_DONE(event);
     }
 }
 

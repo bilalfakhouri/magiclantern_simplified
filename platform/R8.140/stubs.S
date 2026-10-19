@@ -131,10 +131,11 @@ THUMB_FN(0xe086ac04,  take_semaphore)                       // SystemIF::KerSem.
 THUMB_FN(0xe086abcc,  take_semaphore_now)
 
 /** GUI **/
-DATA_PTR(    0x4edc,  gui_main_struct)                      // via string "QueueClearFlg Clear", accessed by that function
+DATA_PTR(    0x4ED8,  gui_main_struct)                      // via string "QueueClearFlg Clear", accessed by that function
 DATA_PTR(   0x1897C,  gui_task_list)                        // via WINSYS_CreateController()
 THUMB_FN(0xe0473526,  gui_main_task)                        // via task_create("GuiMainTask"...
 THUMB_FN(0xe04734c4,  gui_enqueue_message)                  // We have two functions for this on R8? via (CannotPost id 0x%08x param:%d pparam:%), they are different from R5
+THUMB_FN(0xe0473460,  putBackMessageEvent)
 THUMB_FN(0xe0600c36,  gui_massive_event_loop)               // various "GUICMD_"* strings
 THUMB_FN(0xe082706a,  SetGUIRequestMode)                    // by debug message. New style (RP+)
 // gui_init_end and GUI_Control DNE. Implemented via function_overrides.

@@ -23,15 +23,22 @@
 #define BGMT_PRESS_ZOOM_IN           0x1C
 #define BGMT_UNPRESS_ZOOM_IN         0x1D
 
+#define BGMT_PRESS_RIGHT             0x3C
+#define BGMT_UNPRESS_RIGHT           0x3D
+#define BGMT_PRESS_LEFT              0x3E
+#define BGMT_UNPRESS_LEFT            0x3F
+#define BGMT_PRESS_UP                0x40
+#define BGMT_UNPRESS_UP              0x41
+#define BGMT_PRESS_DOWN              0x42
+#define BGMT_UNPRESS_DOWN            0x43
+
+// Copied from R5, doesn't exist on R8
 #define BGMT_UNPRESS_UDLR            0x76
-#define BGMT_PRESS_UP                0x77
 #define BGMT_PRESS_UP_RIGHT          0x78
 #define BGMT_PRESS_UP_LEFT           0x79
-#define BGMT_PRESS_RIGHT             0x7A
-#define BGMT_PRESS_LEFT              0x7B
 #define BGMT_PRESS_DOWN_RIGHT        0x7C
 #define BGMT_PRESS_DOWN_LEFT         0x7D
-#define BGMT_PRESS_DOWN              0x7E
+
 
 
 #define BGMT_PRESS_HALFSHUTTER       0x9F
