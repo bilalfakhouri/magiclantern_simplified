@@ -161,6 +161,39 @@ unsigned int exmem_clear(struct memSuite *hSuite, char fill)
     return written;
 }
 
+/**
+ * Resource type ID, the 4th argument of AllocateMemoryResource() and
+ * AllocateContinuousMemoryResource().
+ *
+ * R8: 0x50 (used by older models) is no longer a valid ID. The R8 ROM
+ * translates the ID in RscMgrOldApiWrapper.c and asserts on unknown ones, so
+ * 0x50 crashes the camera. Use 0 instead (generic pool, valid for both APIs).
+ *
+ * Measured on R8.140 (sizes 1/4/16/32/64 MB, always 1 chunk):
+ *
+ * Up to 32 MB (64 MB fails), CPU address 0x462d6070, usable by ML:
+ *   AllocateMemoryResource           : 0, 1, 2, 4, 8, 0xc
+ *   AllocateContinuousMemoryResource : 0, 4, 6, 9, 0xa, 0xc
+ *
+ * Allocate fine, but give NO CPU address (the chunk has a non-zero 64-bit
+ * base, GetMemoryAddressOfMemoryChunk() would assert at 0xe08490b4):
+ *   up to 32 MB : AllocateMemoryResource 0xb, AllocateContinuousMemoryResource 0xb
+ *   64 MB or more:
+ *     AllocateMemoryResource           : 0x5, 0x52, 0x56
+ *     AllocateContinuousMemoryResource : 0x7, 0x52, 0x53, 0x5a, 0x5b
+ *
+ * Other:
+ *   AllocateContinuousMemoryResource 0x58 : 16 MB max, CPU address 0x7e708080
+ *   AllocateContinuousMemoryResource 0x57, 0x59 : returned nothing, even at 1 MB
+ *   Any ID not listed above asserts (from the ROM's switch; 0x50 and 0x59
+ *   for AllocateMemoryResource confirmed on camera).
+ */
+
+#ifdef CONFIG_R8
+#define TYPE_ID 0
+#else
+#define TYPE_ID 0x50
+#endif
 
 /* when size is set to zero, it will try to allocate the maximum possible block */
 static struct memSuite *shoot_malloc_suite_int(size_t size)
@@ -172,7 +205,7 @@ static struct memSuite *shoot_malloc_suite_int(size_t size)
     suite_info->size = size;
     suite_info->sem = alloc_sem;
     
-    AllocateMemoryResource(size, allocCBR, (unsigned int)suite_info, 0x50);
+    AllocateMemoryResource(size, allocCBR, (unsigned int)suite_info, TYPE_ID);
     
     int r = take_semaphore_nc(suite_info->sem, 100);
     if (r)
@@ -333,7 +366,7 @@ struct memSuite * _shoot_malloc_suite_contig(size_t size)
     suite_info->size = size;
     suite_info->sem = alloc_sem;
     
-    AllocateContinuousMemoryResource(size, allocCBR, (unsigned int)suite_info, 0x50);
+    AllocateContinuousMemoryResource(size, allocCBR, (unsigned int)suite_info, TYPE_ID);
 
     int r = take_semaphore_nc(suite_info->sem, 100);
     if (r)
@@ -403,7 +436,7 @@ void exmem_test()
     struct memChunk *hChunk = 0;
     
     msleep(2000);
-    AllocateMemoryResource(1024*1024*32, allocCBR, (unsigned int)&hSuite, 0x50);
+    AllocateMemoryResource(1024*1024*32, allocCBR, (unsigned int)&hSuite, TYPE_ID);
     int r = take_semaphore_nc(alloc_sem, 100);
     if (r)
         return;
