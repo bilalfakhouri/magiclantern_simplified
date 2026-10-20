@@ -23,7 +23,8 @@
 //#define MALLOC_FREE_MEMORY (MEM(MALLOC_STRUCT + 8) - MEM(MALLOC_STRUCT + 0x1C)) // "Total Size" - "Allocated Size"
 
 /* high confidence */
-#define DRYOS_ASSERT_HANDLER        0x4004               //from debug_asset function, hard to miss
+#define DRYOS_ASSERT_HANDLER        0x4004   // debug_assert (0xe086adf4): handler(int *args) = {LR, msg, file, line}
+#define DRYOS_ASSERT_HANDLER_3ARG   0x4000   // 3-arg assert (0xe086ae48): handler(msg, file, line)
 
 #define CURRENT_GUI_MODE            (*(int*)0x7920)      // see SetGUIRequestMode, Compared with param 1 before write to 0x8708
 

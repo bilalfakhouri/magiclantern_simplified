@@ -548,15 +548,14 @@ void hold_your_horses()
  * Crash log should contain Canon error message.
  */
 static char assert_msg[512] = "";
-static int (*old_assert_handler)(char*,char*,int,int) = 0;
 const char* get_assert_msg() { return assert_msg; }
 
-static int my_assert_handler(char* msg, char* file, int line, int arg4)
+static void assert_save_crash_log(char* msg, char* file, int line, uint32_t lr)
 {
     if (msg == NULL)
         msg = "nullptr";
-
-    uint32_t lr = read_lr();
+    if (file == NULL)
+        file = "nullptr";
 
 #ifdef CONFIG_DIGIC_678X
     // compiler warning on unused len
@@ -579,8 +578,36 @@ static int my_assert_handler(char* msg, char* file, int line, int arg4)
     backtrace_getstr(assert_msg + len, sizeof(assert_msg) - len);
 #endif
     request_crash_log(1);
+}
+
+#if defined(CONFIG_R8)
+/* R8: Canon's debug_assert(LR, msg, file, line) (0xe086adf4) saves its four args in a
+ * block and calls the handler at DRYOS_ASSERT_HANDLER (0x4004) with a pointer to it:
+ * args[0] = LR, args[1] = msg, args[2] = file, args[3] = line.
+ * The 3-arg assert (0xe086ae48) still calls the handler at 0x4000 as (msg, file, line). */
+static int (*old_assert_handler)(int *) = 0;
+static int (*old_assert_handler_3arg)(char*,char*,int) = 0;
+
+static int my_assert_handler(int * args)
+{
+    assert_save_crash_log((char *) args[1], (char *) args[2], args[3], args[0]);
+    return old_assert_handler(args);
+}
+
+static int my_assert_handler_3arg(char* msg, char* file, int line)
+{
+    assert_save_crash_log(msg, file, line, read_lr());
+    return old_assert_handler_3arg(msg, file, line);
+}
+#else
+static int (*old_assert_handler)(char*,char*,int,int) = 0;
+
+static int my_assert_handler(char* msg, char* file, int line, int arg4)
+{
+    assert_save_crash_log(msg, file, line, read_lr());
     return old_assert_handler(msg, file, line, arg4);
 }
+#endif
 
 void ml_assert_handler(char* msg, char* file, int line, const char* func)
 {
@@ -651,6 +678,10 @@ void boot_post_init_task(void)
     // decompile TH_assert to find out the location
     old_assert_handler = (void*)MEM(DRYOS_ASSERT_HANDLER);
     *(void**)(DRYOS_ASSERT_HANDLER) = (void*)my_assert_handler;
+#if defined(CONFIG_R8)
+    old_assert_handler_3arg = (void*)MEM(DRYOS_ASSERT_HANDLER_3ARG);
+    *(void**)(DRYOS_ASSERT_HANDLER_3ARG) = (void*)my_assert_handler_3arg;
+#endif
 #endif // (CONFIG_CRASH_LOG)
 
     DebugMsg( DM_MAGIC, 3, "Magic Lantern %s (%s)",
