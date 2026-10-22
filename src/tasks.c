@@ -471,3 +471,32 @@ int CheckBmpReleaseRecursiveLock(void* lock)
     return r;
 }
 #endif
+
+#ifdef CONFIG_R8
+#include "notify_box.h"
+
+uint32_t task_create_own_stack(const char *name, uint32_t prio, uint32_t stack_size,
+                               void *entry, void *arg, void **stack_mem)
+{
+    uint8_t *mem = malloc(stack_size + 16);
+    if (!mem)
+    {
+        NotifyBox(5000, "%s: task not created (malloc failed)", name);
+        return 0;
+    }
+
+    uint8_t *stack_base = (uint8_t *)(((uint32_t)mem + 7) & ~7);   /* 8-byte aligned stack base (lowest address) */
+
+    int id = create_task_internal(entry, arg, stack_base, stack_size, prio, 0, name);
+    if (id == -1)               /* bad priority or no free task slot  */
+    {
+        free(mem);
+        NotifyBox(5000, "%s: task not created (bad priority or no free task slot)", name);
+        return 0;
+    }
+
+    start_task_internal(id);
+    *stack_mem = mem;
+    return (uint32_t)id << 1;   /* same as task_create() */
+}
+#endif

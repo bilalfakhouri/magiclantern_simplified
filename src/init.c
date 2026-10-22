@@ -525,7 +525,12 @@ static void my_big_init_task()
         );
         ml_tasks++;
     }
-    
+
+#ifdef CONFIG_R8
+    extern void livev_tasks_create_r8(void);
+    livev_tasks_create_r8();    /* TASK_CREATE tasks that don't fit in the kernel stack pool */
+#endif
+
     msleep(500);
 #ifdef CONFIG_XF605
     uart_printf("hello from ML, after late tasks");

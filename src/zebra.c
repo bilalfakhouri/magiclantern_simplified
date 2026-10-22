@@ -4323,10 +4323,19 @@ livev_lopriority_task( void* unused )
 
 #define HIPRIORITY_TASK_PRIO 0x18
 
-// FIXME: R8 crashes very fast with these in full build, let's skip them for now
 #if !defined(CONFIG_R8)
 TASK_CREATE( "livev_hiprio_task", livev_hipriority_task, 0, HIPRIORITY_TASK_PRIO, 0x4000 );
 TASK_CREATE( "livev_loprio_task", livev_lopriority_task, 0, 0x1f, 0x8000 );
+#else
+/* R8: the kernel stack pool is too small for these stacks, so use stacks from the ML heap.
+ * Called from init.c, where the TASK_CREATE tasks are started. */
+void livev_tasks_create_r8(void)
+{
+    static void *hiprio_stack_mem, *loprio_stack_mem;   /* never freed, these tasks run forever */
+
+    task_create_own_stack("livev_hiprio_task", HIPRIORITY_TASK_PRIO, 0x4000, livev_hipriority_task, 0, &hiprio_stack_mem);
+    task_create_own_stack("livev_loprio_task", 0x1f, 0x8000, livev_lopriority_task, 0, &loprio_stack_mem);
+}
 #endif
 
 // these may be out of order for config compatibility

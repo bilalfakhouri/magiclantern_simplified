@@ -7176,7 +7176,15 @@ void run_in_separate_task(void* routine, int argument)
     struct cbr * cbr = malloc(sizeof(struct cbr));
     cbr->user_routine = routine;
     cbr->argument = argument;
+
+#if !defined(CONFIG_R8)
     task_create("run_test", 0x1a, 0x8000, task_without_powersave, cbr);
+#else
+    /* R8: kernel stack pool is too small for a 0x8000 stack (task_create would assert),
+     so use a stack from the ML heap. The stack is not freed, ~32 KB stays used per run. */
+    static void *run_test_stack_mem;
+    task_create_own_stack("run_test", 0x1a, 0x8000, task_without_powersave, cbr, &run_test_stack_mem);
+#endif
 }
 
 /* fixme: may be slow on large menus */

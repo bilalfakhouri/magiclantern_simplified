@@ -393,4 +393,15 @@ const char *get_current_task_name();
 /* to refactor with CBR */
 void task_update_loads(); // called every second from clock_task
 
+#ifdef CONFIG_R8
+extern int create_task_internal(void *entry, void *arg, void *stack_ptr, uint32_t stack_size,
+                                uint32_t prio, uint32_t flags, const char *name);
+extern int start_task_internal(int task_id);
+
+/* like task_create(), but the stack comes from the ML heap (the kernel stack pool is tiny on R8).
+ * Returns 0 on failure. *stack_mem = heap block of the stack, free() it after the task has ended. */
+uint32_t task_create_own_stack(const char *name, uint32_t prio, uint32_t stack_size,
+                               void *entry, void *arg, void **stack_mem);
+#endif
+
 #endif

@@ -48,6 +48,8 @@ DATA_PTR(    0x1028,  current_task)                         // from task_create(
 DATA_PTR(    0x4488,  task_max)                             // entry in SysConfig struct
 THUMB_FN(0xe084b08e,  msleep)                               // argument is always multiple of 10
 THUMB_FN(0xe086a71e,  task_create)                          // used to start TaskMain, GuiMainTask etc
+THUMB_FN(0xe04b8664,  create_task_internal)                 // (entry, arg, stack_ptr, stack_size, prio, flags=0, name)
+THUMB_FN(0xe04b878e,  start_task_internal)                  // (task_id)
 
 /** File I/O **/
 // kitor: ordered by ROM address, as FIO block usually holds the same in-ROM order.
