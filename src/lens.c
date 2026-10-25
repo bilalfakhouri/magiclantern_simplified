@@ -1377,8 +1377,9 @@ PROP_HANDLER( PROP_LENS_STATIC_DATA )
 
     lens_info.IS               = _static->lens_is_funct_exists;
 
-     //not sure?
-    lens_info.lens_version      = 0;
+    lens_info.lens_version = (_static->lens_firm_ver[0] << 16) |
+                             (_static->lens_firm_ver[1] << 8)  |
+                              _static->lens_firm_ver[2];
     lens_info.lens_capabilities = _static->type; //Wrong, let's display type.
 
     uint32_t lens_serial_lo =
