@@ -158,7 +158,7 @@ inline uint8_t *bmp_vram_raw() {
     #if defined(CONFIG_R8)
         #define BMP_W_PLUS   1090
         #define BMP_W_MINUS -190
-        #define BMP_H_PLUS   480
+        #define BMP_H_PLUS   481
         #define BMP_H_MINUS -37
     #else
         // R5
