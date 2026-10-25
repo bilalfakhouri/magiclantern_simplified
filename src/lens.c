@@ -1360,8 +1360,6 @@ PROP_HANDLER( PROP_MVR_REC_START )
 //confirmed R, RP, M50
 PROP_HANDLER( PROP_LENS_STATIC_DATA )
 {
-// FIXME: verify prop_lens_static_data on R8 in lens.h before using this
-#if !defined(CONFIG_R8)
     ASSERT(len == sizeof(struct prop_lens_static_data));
 
     const struct prop_lens_static_data * _static = (void*) buf;
@@ -1393,7 +1391,6 @@ PROP_HANDLER( PROP_LENS_STATIC_DATA )
     lens_info.lens_serial =
          (uint64_t) lens_serial_lo |
         ((uint64_t) lens_serial_hi << 32);
-#endif
 }
 #else
 
@@ -1954,8 +1951,6 @@ void _prop_lv_lens_request_update()
 #if defined(CONFIG_DIGIC_8X)
 PROP_HANDLER( PROP_LENS_DYNAMIC_DATA )
 {
-// FIXME: verify prop_lens_dynamic_data on R8 in lens.h before using this
-#if !defined(CONFIG_R8)
     if(len != sizeof(struct prop_lens_dynamic_data))
         return;
 
@@ -1995,7 +1990,6 @@ PROP_HANDLER( PROP_LENS_DYNAMIC_DATA )
     }
 
     _lens_dynamic_data_post_update();
-#endif
 }
 #endif
 
