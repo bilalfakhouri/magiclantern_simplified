@@ -240,7 +240,7 @@ if (LiveViewApp_dialog) dialog_redraw(LiveViewApp_dialog);
 -R8’s slot also uses a different convention: 0xE0647414 treats bit 0 set as “not active” instead of NULL.
 -R8’s dialog_redraw (0xE082C864) checks *(u32*)dialog == MEM(0x18A04+4). A gui_task fails that check and trips the assert at WindowSystem::Dialog.c line 0x29B. An odd sentinel value would fault outright. */
 
-DATA_PTR(   0x153b4,  LiveViewApp_dialog)                   // via debug string "StartLiveViewApp(%#x)" // This is not real LiveViewApp_dialog
+DATA_PTR(   0x1E838,  LiveViewApp_dialog)                   // 0x1E838 is StartLiveViewAFFrameButtonApp dialog on R8, we are using it instead of LiveViewApp_dialog 0x153B4
 
 //DATA_PTR( 0x21c60,  LiveViewShutterApp_dialog)            // via debug string "StartLiveViewShutterApp" // R5
 //DATA_PTR(      0x,  PlayMovieGuideApp_dialog)             // PlayMovieGuideApp DNE on R5 // R5
