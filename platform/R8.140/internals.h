@@ -8,6 +8,9 @@
 /** Digic 6 and up does not have bitmap font in ROM, try to load it from card **/
 #define CONFIG_NO_BFNT
 
+/** has LV: enables the PROP_LV_ACTION handler that sets `lv` (without it lv is always 0) **/
+#define CONFIG_LIVEVIEW
+
 /** disable SRM for now
  * in current state SRM_AllocateMemoryResourceFor1stJob makes camera crash
  * even if just one buffer is requested.

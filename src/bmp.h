@@ -168,16 +168,18 @@ inline uint8_t *bmp_vram_raw() {
         #define BMP_H_MINUS -30
     #endif
     #define BMP_LAYER_WIDTH 2048
+    #define BMPPITCH 2048
+    #define BMP_VRAM_SIZE (2048*540)
     #else
     // kitor: Still works for RGB buffers in 200D and EOSR
     #define BMP_W_PLUS   840
     #define BMP_W_MINUS -120
     #define BMP_H_PLUS   510
     #define BMP_H_MINUS -30
-    #endif
 
     #define BMPPITCH 960
     #define BMP_VRAM_SIZE (960*540)
+    #endif
 
     #define BMP_HDMI_OFFSET ((-BMP_H_MINUS)*BMPPITCH + (-BMP_W_MINUS))
 

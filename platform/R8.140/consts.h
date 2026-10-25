@@ -33,7 +33,7 @@
  */
 #define GUIMODE_PLAY 0x2002
 #define GUIMODE_MENU 0x2003
-#define GUIMODE_ML_MENU (lv ? 0xC048 : GUIMODE_MENU)
+#define GUIMODE_ML_MENU (lv ? 0xC053 : GUIMODE_MENU)
 //#define GUIMODE_ML_MENU (RECORDING ? 0 : lv ? 0x68 : GUIMODE_MENU)
 
 #define CANON_SHUTTER_RATING 200000 // Some internet sources say 200K
