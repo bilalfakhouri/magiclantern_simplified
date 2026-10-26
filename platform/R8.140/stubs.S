@@ -33,6 +33,7 @@
 /** Startup **/
 NSTUB(MAIN_FIRMWARE_ADDR,  firmware_entry)                  // also known as 2nd stage loader, boot2 or DryOS loader
 THUMB_FN(0xe0867bd0,  dcache_clean)                         // call from firmware_entry(); in assembly: loop with MCR p15 c7,c10,1; DSB
+THUMB_FN(0xe0153668,  dcache_clean_multicore)
 THUMB_FN(0xe0867ca4,  icache_invalidate)                    // call from firmware_entry(); in assembly: loop with MCR p15 c7,c5,1; c7,c1,6; c7,c1,0; ISB
 THUMB_FN(0xe01000f0,  cstart)                               // call from firmware_entry(); calls bzero32 and create_init_task(..., init_task, ...)
 THUMB_FN(0xe086aeb8,  bzero32)                              // call from cstart(); zeros out a data structure
@@ -48,6 +49,7 @@ DATA_PTR(    0x1028,  current_task)                         // from task_create(
 DATA_PTR(    0x4488,  task_max)                             // entry in SysConfig struct
 THUMB_FN(0xe084b08e,  msleep)                               // argument is always multiple of 10
 THUMB_FN(0xe086a71e,  task_create)                          // used to start TaskMain, GuiMainTask etc
+THUMB_FN(0xe086a990,  task_create_ex)                       /* as task_create, but allows selecting CPU for task*/
 THUMB_FN(0xe04b8664,  create_task_internal)                 // (entry, arg, stack_ptr, stack_size, prio, flags=0, name)
 THUMB_FN(0xe04b878e,  start_task_internal)                  // (task_id)
 
@@ -82,6 +84,20 @@ THUMB_FN(0xe0a27e88,  SetHPTimerAfterNow)                   // System::HPTimer.c
 THUMB_FN(0xe0a27f1a,  SetHPTimerNextTick)                   // System::HPTimer.c; next function; same "worker" as SetHPTimerAfterNow()
 THUMB_FN(0xe084fd84,  SetTimerAfter)                        // SystemIF::Timer1m.c
 THUMB_FN(0xe084fe3e,  CancelTimer)                          // CancelRefreshTimer, CancelPlayTimer
+
+/** Interrupts **/
+THUMB_FN(0xe016f400,  send_software_interrupt) // int 10 is used by DryOS to sleep/wake cpu1
+
+/* RPC: RAM code (module at 0xdffc5000, source image in ROM near 0xe2392370).  */
+THUMB_FN(0xdffc750e, _request_RPC)      // (func, arg) -> 0 ok / -1 timeout; wraps irq-off + inner 0xdffc7396
+THUMB_FN(0xdffc752e, clear_RPC_request) // () -> 0; wraps irq-off + inner 0xdffc74ba
+
+// MMU related, required by CONFIG_MMU features
+THUMB_FN(0xe084b2c6, change_mmu_tables) // Updates TTBRs and does TLB maintenance
+//THUMB_FN(0xe000c8e4, copy_mmu_tables) // boot-area copy
+
+// slightly MMU related, used by CONFIG_MMU_REMAP
+THUMB_FN(0xe0a85478, memcpy_dryos)
 
 /** Memory allocation **/
 THUMB_FN(0xe08681dc, _AllocateMemory)                       // NG AllocateMemory

@@ -18,6 +18,11 @@
 // from dryos bootloader to init_task + a little bit of overhead just in case
 #define FIRMWARE_ENTRY_LEN 0x1000
 
+#define CANON_ORIG_MMU_TABLE_ADDR 0xe0000000 // R8's copy_mmu_tables (0xe000c8e4)
+                                             // memcpy()s 0x4900 bytes from 0xe0000000
+
+#define DRYOS_SGI_HANDLERS_PTR 0x400c
+
 /* "Malloc Information" */
 #define MALLOC_STRUCT_ADDR 0xF3610
 //#define MALLOC_FREE_MEMORY (MEM(MALLOC_STRUCT + 8) - MEM(MALLOC_STRUCT + 0x1C)) // "Total Size" - "Allocated Size"
