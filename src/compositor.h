@@ -15,6 +15,12 @@ int compositor_layer_setup();
 #define XIMR_MAX_LAYERS 6
 
 /**
+ * XCM (Ximr Context Maker) only has 4 source layer slots, on both D8 (M6II)
+ * and DX (R8): XCM_{Get,Set}SourceSurface/SetSourceArea reject index >= 4.
+ */
+#define XCM_MAX_LAYERS 4
+
+/**
  * color / flags field contains at least 4 information, starting from MSB:
  *
  * 8 bits: Possibly Ximr type ID for color space.

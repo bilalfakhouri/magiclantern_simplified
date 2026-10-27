@@ -161,3 +161,19 @@ extern int winsys_bmp_dirty_bit_neg;
 // XCM + 0x10 is first XC
 #define XCM_PTR *(unsigned int *)0x1455D0
 #define XIMR_CONTEXT ((unsigned int *)(XCM_PTR + 0x10))
+
+/**
+ * CONFIG_COMPOSITOR_DEDICATED_LAYER on DIGIC X: see compositor.c
+ *
+ * MEMIARB_PID_TABLE: Peripheral::MemiArbiter.c table, 253 bytes per DRAM
+ * channel (from ch1), byte[pid] == 1 if pid is registered. 0xff in first byte
+ * = not populated. Read by 0xe09225bc, filled by 0xe0956fee.
+ *
+ * COMPOSITOR_RSC_TYPES: AllocateContinuousMemoryResource() type IDs to try
+ * if ML heap lands on DRAM channel Ximr can't read. Measured on R8 (exmem.c):
+ *   0x58 -> CPU 0x7e708080 = DRAM-Ch2 (16MB pool)
+ *   0x00 -> CPU 0x462d6070 = DRAM-Ch1
+ * Do NOT add types that "give no CPU address" - GetMemoryAddressOfMemoryChunk asserts.
+ */
+#define MEMIARB_PID_TABLE       0x6278
+#define COMPOSITOR_RSC_TYPES    { 0x58, 0x00 }

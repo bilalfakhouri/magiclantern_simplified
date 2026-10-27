@@ -220,7 +220,31 @@ THUMB_FN(0xe01ac174, XimrExe);                              // In VMIX_TransferR
  */
 THUMB_FN(0xe0187670, XCM_GetSourceSurface)                  // by debug message
 //THUMB_FN(0xe01871ec, XCM_MakeContext)                     // by debug message. Not used in code, left for reference below.
+//THUMB_FN(0xe018735c, XCM_GetContext)                      // by debug message. Ximr context is 0x768 bytes on R8 (0x31c on M6II)
 DATA_PTR(  0x1455d0, _pXCM);                                // param1 to XCM_MakeContext() when called from VMIX_TransferRectangleToVram()
+
+/**
+ * Stubs needed for CONFIG_COMPOSITOR_DEDICATED_LAYER (XCM_V2 API, same as M6II / RP / 850D).
+ *
+ * XCM API is unchanged vs DIGIC 8, only the XCM struct grew:
+ * per-layer slot is at pXCM + 0x1658 + n*0x24 (M6II: + 0x974), still max 4 layers.
+ */
+THUMB_FN(0xe0289f1c, refreshVrmsSurface)                    // "VMIX_TransferRectangleToVram %d %d"
+DATA_PTR(   0x18afc, display_refresh_needed)                // VMIX struct 0x18ae4 + 0x18; first thing checked in VMIX_TransferRectangleToVram()
+//DATA_PTR( 0x145428, RENDERER_LayersMetadata)              // 6 x {MARV*, w, h}, filled in RENDERER_InitializeScreen(). Reference only.
+THUMB_FN(0xe018740e, XCM_SetSourceSurface)                  // "XCM_SetSourceSurface layerIndex = %d"
+THUMB_FN(0xe01876a8, XCM_SetSourceArea)                     // "XCM_SetSourceArea layerIndex = %d"
+THUMB_FN(0xe028a49c, XOC_SetLayerEnable)                    // VMIX wrapper (disp<3, xoc<4, layer, en) -> real XOC_SetLayerEnable(pXOC, layer, en) @ 0xe01a803a
+                                                            // M6II wrapper is (disp<3, xoc<3, ...), same calling convention
+
+/**
+ * DIGIC X: MARV carries a 64-bit IBus address of bitmap_data.
+ * Ximr validates it in XimrSetInputLayerMARV() (0xe01a8c9e):
+ *   - high word must be DRAM channel 1..3, else "Invalid IBUS Address!!" assert (0xe0857746)
+ *   - Ximr (MemiArbiter pid 0x12) must be registered on that channel, else
+ *     "pid(%d) is not registered in DRAM-Ch%d" assert (0xe09225bc)
+ */
+THUMB_FN(0xe092f20c, MemifWindow_GetIBusAddress)            // uint64 (void *); asserts addr >= 0xC0000000. Used by CreateMARV @ 0xe0a042e8
 
 /** Wrong on purpose **/
 DATA_PTR(       0x0,  LCD_Palette)

@@ -60,13 +60,19 @@ struct MARV
     uint8_t * bitmap_data;      /* either UYVY or UYVY + opacity */
     uint8_t * opacity_data;     /* optional; if missing, it's interleaved in bitmap_data */
     #ifdef CONFIG_DIGIC_X
-    uint32_t memif_1;           /* meaning unknown, seems to be set as 0xFFFFFFFF */
-    uint64_t ibus_addr;         /* 64 bit IBus address for bitmap_data? */
+    uint32_t pad_0c;            /* padding so ibus_addr is 8-byte aligned. Canon's CreateMARV never writes it. */
+    uint64_t ibus_addr;         /* 64 bit IBus address of bitmap_data: lo = IBus window | offset, hi = DRAM channel (1..3)
+                                 * see MemifWindow_GetIBusAddress(). Validated by Ximr. */
     #endif
     uint32_t flags;             /* unknown */
-    uint32_t width;             /* X resolution; may be larger than screen size */
+    uint32_t width;             /* X resolution; may be larger than screen size. DIGIC X: rounded up to 32 px */
     uint32_t height;            /* Y resolution; may be larger than screen size */
     void * pmem;                /* pointer to PMEM (Permanent Memory) structure */
+    #ifdef CONFIG_DIGIC_X
+    /* DIGIC X MARV is 0x30 bytes; XimrSetInputLayerMARV() copies all 0x30 into Ximr context. */
+    uint32_t req_width;         /* width as requested, before 32 px alignment */
+    uint32_t unk_2c;            /* never written by CreateMARV */
+    #endif
 };
 
 struct bmp_vram_info

@@ -59,22 +59,208 @@ void _compositor_force_redraw()
     //refreshVrmsSurface(); // not needed as we do XimrExe() in bmp.c
 }
 
+// Align to 0x100 and use uncacheable region.
+// This is expected by some Zico functions (Canon's own layer heap uses 0x100 alignment too).
+#define LAYER_BUF_ALIGN(p) UNCACHEABLE((uint8_t*)((((uintptr_t)(p) + 0x100) >> 8) << 8))
+#define LAYER_BUF_SIZE     ((BMP_VRAM_SIZE * 4) + 0x100)
+
+#ifdef CONFIG_DIGIC_X
+#ifndef CONFIG_COMPOSITOR_XCM
+#error "DIGIC X dedicated layer needs CONFIG_COMPOSITOR_XCM (uses XCM_GetSourceSurface)"
+#endif
+/**
+ * DIGIC X: IBus / DRAM channel handling
+ *
+ * DIGIC X has (at least) two DRAM channels. Every bus master addresses memory
+ * via a 64-bit "IBus" address, ARM addresses are translated by a table of
+ * MEMIF windows, one per 256MB of ARM address space (regs 0xd2044080..ac,
+ * read by MemifWindow_GetIBusAddress()). On R8 the boot code (0xe000a880) sets:
+ *
+ *   0x0xxxxxxx, 0x1xxxxxxx (+ uncached 0x4/0x5) -> DRAM channel 1
+ *   0x2xxxxxxx, 0x3xxxxxxx (+ uncached 0x6/0x7) -> DRAM channel 2
+ *
+ * MemifWindow_GetIBusAddress() returns:
+ *   lo32 = (window & ~7) | (addr & 0x0FFFFFFF)
+ *   hi32 = window & 7 = DRAM channel
+ *
+ * Ximr checks MARV->ibus_addr in XimrSetInputLayerMARV() (R8: 0xe01a8c9e):
+ *   - channel must be 1..3 ("Invalid IBUS Address!!" assert)
+ *   - Ximr master (MemiArbiter pid 0x12) must be registered for that channel
+ *     ("pid(%d) is not registered in DRAM-Ch%d" assert, MemiArbiter.c)
+ * So the bitmap buffer can't come from "just any" allocator - this is the
+ * "buffers need to be on specific IBus" problem.
+ *
+ * Strategy: allocate, ask MemifWindow which channel we landed on and accept
+ * the buffer only if Ximr can read it. A channel is accepted if:
+ *   - it is the same channel as Canon's own GUI layer (Ximr already reads
+ *     that one on every refresh, so it's proven), or
+ *   - MemiArbiter's pid table says Ximr is registered there (if the platform
+ *     provides MEMIARB_PID_TABLE).
+ * Otherwise fall back to RscMgr allocations from the types listed in
+ * COMPOSITOR_RSC_TYPES (platform consts.h), which land on other channels.
+ */
+extern uint64_t MemifWindow_GetIBusAddress(void *buf);
+
+#ifndef XIMR_MEMIARB_PID
+#define XIMR_MEMIARB_PID 0x12   // pid passed by Ximr to MemiArbiter check
+#endif
+
+static uint32_t compositor_buf_channel(void *buf)
+{
+    // MemifWindow_GetIBusAddress asserts on >= 0xC0000000; RAM is far below that
+    return (uint32_t)(MemifWindow_GetIBusAddress(CACHEABLE(buf)) >> 32);
+}
+
+static int compositor_channel_ok(uint32_t ch, uint32_t canon_ch)
+{
+    if (ch < 1 || ch > 3)
+        return 0;
+
+    if (ch == canon_ch)
+        return 1;
+
+#ifdef MEMIARB_PID_TABLE
+    /*
+     * Same lookup as MemiArbiter check (R8: 0xe09225bc):
+     * 253 bytes per channel, starting at channel 1. 1 = pid registered.
+     * First byte 0xff = table not populated yet (Canon then asks HW).
+     */
+    uint8_t *tbl = (uint8_t *)MEMIARB_PID_TABLE;
+    if (tbl[0] != 0xff)
+        return tbl[(ch - 1) * 0xfd + XIMR_MEMIARB_PID] == 1;
+#endif
+
+    // If we don't know where Canon's layer is (canon_ch == 0) and can't ask
+    // MemiArbiter, take any valid channel - same as previous behaviour.
+    return canon_ch == 0;
+}
+
+/*
+ * Minimal synchronous wrapper around RscMgr contiguous allocation, with
+ * a selectable type ID. exmem.c uses a fixed TYPE_ID, we need to pick
+ * types that land on a specific DRAM channel.
+ */
+#ifdef COMPOSITOR_RSC_TYPES
+typedef struct
+{
+    struct memSuite *ret;
+    struct semaphore *sem;
+    volatile uint32_t timed_out;
+} compositor_rsc_msg_t;
+
+static void compositor_rsc_free_cbr(unsigned int ctx) { }
+
+static void compositor_rsc_alloc_cbr(unsigned int ctx, struct memSuite *hSuite)
+{
+    compositor_rsc_msg_t *msg = (compositor_rsc_msg_t *)ctx;
+    if (msg->timed_out)
+    {
+        // caller gave up, don't leak
+        if (hSuite) FreeMemoryResource(hSuite, compositor_rsc_free_cbr, 0);
+        return;
+    }
+    msg->ret = hSuite;
+    give_semaphore(msg->sem);
+}
+
+static compositor_rsc_msg_t compositor_rsc_msg; // must outlive a timed out request, see cbr
+
+/* returns suite, NULL on failure; *timed_out set if RscMgr didn't answer */
+static struct memSuite *compositor_rsc_alloc_contig(size_t size, int type, int *timed_out)
+{
+    compositor_rsc_msg_t *msg = &compositor_rsc_msg;
+    msg->ret = NULL;
+    msg->timed_out = 0;
+    if (!msg->sem) msg->sem = create_named_semaphore("compositor_rsc", 0);
+
+    AllocateContinuousMemoryResource(size, compositor_rsc_alloc_cbr, (unsigned int)msg, type);
+    if (take_semaphore(msg->sem, 1000))
+    {
+        // late callback will free the suite; msg can't be reused safely
+        msg->timed_out = 1;
+        *timed_out = 1;
+        return NULL;
+    }
+    *timed_out = 0;
+    return msg->ret;
+}
+#endif // COMPOSITOR_RSC_TYPES
+
+/*
+ * Allocate bitmap buffer that Ximr can read.
+ * Returns aligned, uncacheable pointer or NULL.
+ */
+static uint8_t *_compositor_alloc_bitmap(uint32_t canon_ch)
+{
+    // 1. ML heap. On R8 this is DRAM channel 1.
+    void *raw = malloc(LAYER_BUF_SIZE);
+    if (raw)
+    {
+        uint8_t *buf = LAYER_BUF_ALIGN(raw);
+        uint32_t ch = compositor_buf_channel(buf);
+        DryosDebugMsg(0, 15, "malloc layer buf 0x%08x -> DRAM-Ch%d (Canon: Ch%d)", buf, ch, canon_ch);
+        if (compositor_channel_ok(ch, canon_ch))
+            return buf;
+        free(raw);
+    }
+
+#ifdef COMPOSITOR_RSC_TYPES
+    // 2. RscMgr pools. Kept forever (as is ML's layer).
+    static const int rsc_types[] = COMPOSITOR_RSC_TYPES;
+    for (int i = 0; i < COUNT(rsc_types); i++)
+    {
+        int timed_out = 0;
+        struct memSuite *suite = compositor_rsc_alloc_contig(LAYER_BUF_SIZE, rsc_types[i], &timed_out);
+        if (timed_out)
+            break;
+        if (!suite)
+            continue;
+
+        struct memChunk *chunk = GetFirstChunkFromSuite(suite);
+        void *addr = chunk ? GetMemoryAddressOfMemoryChunk(chunk) : NULL;
+        if (addr)
+        {
+            uint8_t *buf = LAYER_BUF_ALIGN(addr);
+            uint32_t ch = compositor_buf_channel(buf);
+            DryosDebugMsg(0, 15, "RscMgr type 0x%x layer buf 0x%08x -> DRAM-Ch%d", rsc_types[i], buf, ch);
+            if (compositor_channel_ok(ch, canon_ch))
+                return buf;
+        }
+        FreeMemoryResource(suite, compositor_rsc_free_cbr, 0);
+    }
+#endif
+
+    return NULL;
+}
+#else // !CONFIG_DIGIC_X
+static uint8_t *_compositor_alloc_bitmap()
+{
+    uint8_t *raw = malloc(LAYER_BUF_SIZE);
+    return raw ? LAYER_BUF_ALIGN(raw) : NULL;
+}
+#endif // CONFIG_DIGIC_X
+
 struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
 {
     // buffer for MARV structure
     struct MARV* pNewLayer = malloc(sizeof(struct MARV));
     if(pNewLayer == NULL) return NULL;
-    
-    // buffer for layer data, +0x100 for alignment
-    uint8_t* pBitmapData = malloc((BMP_VRAM_SIZE * 4) + 0x100);
+
+#ifdef CONFIG_DIGIC_X
+    // Find DRAM channel of Canon GUI layer; Ximr is known to accept it.
+    uint32_t canon_ch = 0;
+    struct MARV *canon = XCM_GetSourceSurface(_pXCM, CANON_GUI_LAYER_ID);
+    if (canon && canon->signature == 0x5652414D)
+        canon_ch = (uint32_t)(canon->ibus_addr >> 32);
+
+    uint8_t* pBitmapData = _compositor_alloc_bitmap(canon_ch);
+#else
+    uint8_t* pBitmapData = _compositor_alloc_bitmap();
+#endif
     if(pBitmapData == NULL) {
         free(pNewLayer); // cleanup
         return NULL;
     }
-    
-    // Align to 0x100 and use uncacheable region.
-    // This is expected by some Zico functions.
-    pBitmapData = UNCACHEABLE((uint8_t*)((((uintptr_t)pBitmapData + 0x100) >> 8) << 8));
 
     // fill MARV data
     pNewLayer->signature    = 0x5652414D;  // MARV
@@ -82,9 +268,15 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
     pNewLayer->opacity_data = 0x0;
     pNewLayer->flags        = XIMR_FLAGS_LAYER_RGBA; // see compositor.h
 #ifdef CONFIG_DIGIC_X
-    extern uint64_t MemifWindow_GetIBusAddress(uint8_t* buf);
-    pNewLayer->memif_1      = 0xFFFFFFFF;   // no idea
+    // Mirrors Canon CreateMARV (R8: 0xe0a042e8)
+    pNewLayer->pad_0c       = 0;
     pNewLayer->ibus_addr    = MemifWindow_GetIBusAddress(CACHEABLE(pBitmapData));
+    pNewLayer->req_width    = (uint32_t)bmp_w;
+    pNewLayer->unk_2c       = 0;
+    // Canon rounds width (= pitch) up to 32 px; our pitch is fixed, so it must already be aligned.
+    #if ((BMP_W_PLUS - BMP_W_MINUS) % 32) != 0
+    #error "DIGIC X MARV width must be multiple of 32"
+    #endif
 #endif
     pNewLayer->width        = (uint32_t)bmp_w;
     pNewLayer->height       = (uint32_t)bmp_h;
@@ -105,17 +297,12 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
 #error "CONFIG_COMPOSITOR_XCM enabled, but no XCM type was defined!"
 #endif
 
-#ifdef CONFIG_DIGIC_X
-#error XCM is not yet implemented for DIGIC_X, see compositor.c for details!
 /*
- * Digic X uses the new "IBus" stuff for some kind of memory banking
- * We don't know how to use it yet, and Ximr now requires buffers to be
- * "on specific ibus". Otherwise camera aserts.
- *
- * I left in my best guess on Digic X implementation, but it requires malloc
- * replacment that will satisfy Ximr IBus requirements.
+ * DIGIC X (verified on R8 1.4.0) uses the same XCM_V2 API as DIGIC 8.
+ * Differences are handled in _compositor_create_layer():
+ *  - MARV is 0x30 bytes, has 64-bit IBus address of bitmap data
+ *  - bitmap buffer must sit on a DRAM channel Ximr is registered on
  */
-#endif
 
 #ifdef CONFIG_COMPOSITOR_XCM_V1
 /*
@@ -175,18 +362,21 @@ int compositor_layer_setup()
     // So far it seems that default GUI layer is always 0
     int newLayerID = 0;
 
-    // Find first available, non used layer slot
-    while( newLayerID < XIMR_MAX_LAYERS 
+    // Find first available, non used layer slot.
+    // XCM itself has only XCM_MAX_LAYERS slots - for index >= 4 it prints
+    // "XCM_GetSourceSurface layerIndex" error and returns NULL, which would
+    // look like a free slot.
+    while( newLayerID < XCM_MAX_LAYERS
       && XCM_GetSourceSurface(_pXCM, newLayerID) != NULL)
     {
         newLayerID++;
     }
 
     DryosDebugMsg(0, 15, "Found %d layers", newLayerID);
-    if(newLayerID >= XIMR_MAX_LAYERS)
+    if(newLayerID >= XCM_MAX_LAYERS)
     {
         DryosDebugMsg(0, 15, "Too many layers: %d/%d, aborting!",
-                newLayerID, XIMR_MAX_LAYERS);
+                newLayerID, XCM_MAX_LAYERS);
         return 1;
     }
 
