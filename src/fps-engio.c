@@ -321,7 +321,20 @@ static void fps_read_current_timer_values();
     //
     // Variable, like 200D?  Different base clock though.
 
-#elif defined(CONFIG_DIGIC_VIII) || defined(CONFIG_DIGIC_X)
+#elif defined(CONFIG_DIGIC_X) // R8 values
+    // 4K24: 24 x 0x31E x 0xB02 = 53.970 MHz
+    // 4K25: 25 x 0x31E x 0xA8F = 53.925 MHz
+    // 4K30: 30 x 0x31E x 0x8CF = 53.985 MHz
+    // 4K50: 50 x 0x31E x 0x547 = 53.905 MHz
+    // 4K60: 60 x 0x31E x 0x467 = 53.961 MHz
+
+    // 1080p100: 100 x 0x31D x 0x2A4 = 53.877 MHz
+    // 1080p120: 120 x 0x31D x 0x234 = 53.941 MHz
+    // 1080p150: 150 x 0x31D x 0x1C3 = 53.917 MHz
+    // 1080p180: 180 x 0x31D x 0x178 = 53.941 MHz
+    #define TG_FREQ_BASE 54000000
+    #define FPS_TIMER_A_MIN (fps_timer_a_orig)
+#elif defined(CONFIG_DIGIC_VIII)
     #define TG_FREQ_BASE 32000000 //copy from 700D
     #define FPS_TIMER_A_MIN (fps_timer_a_orig)
 #elif defined(CONFIG_100D)

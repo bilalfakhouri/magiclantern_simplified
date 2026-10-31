@@ -3,18 +3,15 @@
 
 int get_fps_register_a(void)
 {
-//    return shamem_read(FPS_REGISTER_A);
-    return 1;
+    return *(uintptr_t*)(FPS_REGISTER_A);
 }
-
+ 
 int get_fps_register_a_default(void)
 {
-//    return shamem_read(FPS_REGISTER_A + 4);
-    return 1;
+    return *(uintptr_t*)(FPS_REGISTER_A + 4);     // 0xD240819C
 }
-
+ 
 int get_fps_register_b(void)
 {
-//    return shamem_read(FPS_REGISTER_B);
-    return 1;
+    return *(uintptr_t*)(FPS_REGISTER_B);
 }
