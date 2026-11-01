@@ -221,6 +221,15 @@ static int FAST stateobj_lv_spy(struct state_object * self, int x, int input, in
         vsync_func();
     }
     
+    #ifdef SENSOR_DRIVER_STATE
+    /* R8: (state 5, input 10) of SensorDriverState is the LiveView sensor
+     * readout done event, once per frame in every LV mode tested (24p .. 180p).
+     * It plays the role of EVF_STATE's evfReadOutDoneInterrupt on older models.
+     * Called after the transition, like the other vsync_func() users above. */
+    if (self == SENSOR_DRIVER_STATE && input == 10 && old_state == 5)
+        vsync_func();
+    #endif
+
     #if defined(CONFIG_7D_MASTER) || defined(CONFIG_7D)
     if (self == LV_STATE && input==3 && old_state == 3) {
         extern void vignetting_correction_apply_lvmgr(int);
@@ -295,7 +304,13 @@ static void state_init(void* unused)
     #ifdef EVF_STATE
         stateobj_start_spy(EVF_STATE, stateobj_lv_spy);
     #endif
-    
+    #ifdef SENSOR_DRIVER_STATE
+        /* the global is filled in by Canon code at boot: wait for it.
+         * stateobj_start_spy() requires that all spied objects share one
+         * transition function; on R8 all of them use 0xe0843ef6. */
+        while (!SENSOR_DRIVER_STATE) msleep(50);
+        stateobj_start_spy(SENSOR_DRIVER_STATE, stateobj_lv_spy);
+    #endif
     #ifdef EMState
         stateobj_start_spy(EMState, stateobj_em_spy);
     #endif

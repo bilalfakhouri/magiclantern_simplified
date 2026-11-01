@@ -17,6 +17,10 @@
 /** has LV: enables the PROP_LV_ACTION handler that sets `lv` (without it lv is always 0) **/
 #define CONFIG_LIVEVIEW
 
+/** state object hooks: LiveView vsync from SensorDriverState (wait_lv_frames etc.),
+ *  see platform/R8.140/include/platform/state-object.h */
+#define CONFIG_STATE_OBJECT_HOOKS
+
 /** disable SRM for now
  * in current state SRM_AllocateMemoryResourceFor1stJob makes camera crash
  * even if just one buffer is requested.
