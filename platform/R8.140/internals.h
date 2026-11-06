@@ -38,3 +38,7 @@
 
 /** shoot_malloc_suite(0) joins the RscMgr pools listed in RSCMGR_POOLS (consts.h) */
 #define CONFIG_RSCMGR_POOLS
+
+/** EDMAC mem2mem via Engine::MemoryToMemoryEsub1, see src/edmac-memcpy-dx.c.
+ *  (CONFIG_EDMAC_MEMCPY would build the DIGIC 4/5 src/edmac-memcpy.c instead) */
+#define CONFIG_EDMAC_MEMCPY_DX
