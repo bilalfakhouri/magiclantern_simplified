@@ -107,6 +107,8 @@
 #define MEMIF_WINDOW_REGS         0xd2044080    // MMIO, 12 fixed memory windows (boot code 0xe000a880)
 #define MEMIARB_PID_TABLE         0x6278        // RAM, 253 bytes per DRAM channel, filled by 0xe0956fee
 #define MEMIARB_ENABLED           0x620c        // RAM, MemiArbiter check (0xe09225bc) active when != 0
+#define EDMAC_DX_CHANNEL_TABLE    0xe1bf6d04    // ROM, 0x14 bytes per EDMAC channel: {base, base2, slot, pid, flags}
+#define EDMAC_DX_CHANNEL_COUNT    0x6f
 
 /* WRONG! */
 #define HALFSHUTTER_PRESSED         0
