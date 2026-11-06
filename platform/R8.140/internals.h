@@ -35,3 +35,6 @@
 /** RscMgr pools described by an IBus base (0xb, big): GetMemoryAddressOfMemoryChunk
  *  is implemented in exmem.c on top of GetIBusAddressOfMemoryChunk + src/ibus.h */
 #define CONFIG_RSCMGR_IBUS
+
+/** shoot_malloc_suite(0) joins the RscMgr pools listed in RSCMGR_POOLS (consts.h) */
+#define CONFIG_RSCMGR_POOLS

@@ -38,6 +38,7 @@ typedef struct
     uint32_t size;
     uint32_t timed_out;
     struct semaphore *sem;
+    int pool;               /* index in RSCMGR_POOLS, -1 = RSCMGR_TYPE_ID */
 } alloc_msg_t;
 
 static struct semaphore *alloc_sem = 0;
@@ -107,6 +108,14 @@ static void freeCBR_nowait(unsigned int a)
 {
 }
 
+#ifdef CONFIG_RSCMGR_POOLS
+/* multi-pool shoot_malloc_suite, see rscmgr_pools_malloc_suite() */
+static GUARDED_BY(mem_sem) struct memSuite *rscmgr_joined = 0;
+static REQUIRES(mem_sem) void rscmgr_pools_free_all();
+static void rscmgr_pool_request_waiting(int pool);
+static void rscmgr_pool_request_done(int pool);
+#endif
+
 REQUIRES(mem_sem)
 void _shoot_free_suite(struct memSuite *hSuite)
 {
@@ -114,6 +123,14 @@ void _shoot_free_suite(struct memSuite *hSuite)
     {
         shoot_full_suite = 0;
     }
+
+#ifdef CONFIG_RSCMGR_POOLS
+    if (hSuite != NULL && hSuite == rscmgr_joined)
+    {
+        rscmgr_pools_free_all();
+        return;
+    }
+#endif
 
     if (hSuite != NULL)
     {
@@ -137,6 +154,12 @@ static void allocCBR(unsigned int priv, struct memSuite *hSuite)
             FreeMemoryResource(hSuite, freeCBR_nowait, 0);
             hSuite = NULL;
         }
+#ifdef CONFIG_RSCMGR_POOLS
+        if (suite_info->pool >= 0)
+        {
+            rscmgr_pool_request_done(suite_info->pool);
+        }
+#endif
         _free(suite_info);
         return;
     }
@@ -197,64 +220,65 @@ unsigned int exmem_clear(struct memSuite *hSuite, char fill)
 
 /**
  * Resource type ID, the 4th argument of AllocateMemoryResource() and
- * AllocateContinuousMemoryResource().
- *
- * R8: 0x50 (used by older models) is no longer a valid ID. The R8 ROM
- * translates the ID in RscMgrOldApiWrapper.c and asserts on unknown ones, so
- * 0x50 crashes the camera. Use 0 instead (generic pool, valid for both APIs).
- *
- * Measured on R8.140 (sizes 1/4/16/32/64 MB, always 1 chunk):
- *
- * Up to 32 MB (64 MB fails), CPU address 0x462d6070, usable by ML:
- *   AllocateMemoryResource           : 0, 1, 2, 4, 8, 0xc
- *   AllocateContinuousMemoryResource : 0, 4, 6, 9, 0xa, 0xc
- *
- * Allocate fine, but give NO CPU address (the chunk has a non-zero 64-bit
- * base, GetMemoryAddressOfMemoryChunk() would assert at 0xe08490b4):
- *   up to 32 MB : AllocateMemoryResource 0xb, AllocateContinuousMemoryResource 0xb
- *   64 MB or more:
- *     AllocateMemoryResource           : 0x5, 0x52, 0x56
- *     AllocateContinuousMemoryResource : 0x7, 0x52, 0x53, 0x5a, 0x5b
- *
- * Other:
- *   AllocateContinuousMemoryResource 0x58 : 16 MB max, CPU address 0x7e708080
- *   AllocateContinuousMemoryResource 0x57, 0x59 : returned nothing, even at 1 MB
- *   Any ID not listed above asserts (from the ROM's switch; 0x50 and 0x59
- *   for AllocateMemoryResource confirmed on camera).
+ * AllocateContinuousMemoryResource(): which RscMgr pool shoot_malloc uses.
+ * Older models use 0x50; cameras where that ID is invalid set RSCMGR_TYPE_ID
+ * in consts.h (R8: 0, the generic pool; 0x50 asserts there).
  */
-
-#ifdef CONFIG_R8
-#define TYPE_ID 0
-#else
-#define TYPE_ID 0x50
+#ifndef RSCMGR_TYPE_ID
+#define RSCMGR_TYPE_ID 0x50
 #endif
 
-/* when size is set to zero, it will try to allocate the maximum possible block */
-static struct memSuite *shoot_malloc_suite_int(size_t size)
+/* one RscMgr request; NULL if it doesn't fit (the request then stays queued
+ * in RscMgr and allocCBR frees it when it completes later) */
+static struct memSuite *rscmgr_alloc_suite(size_t size, int type, int continuous, int pool)
 {
     alloc_msg_t *suite_info = _malloc(sizeof(alloc_msg_t));
-    
+    if (!suite_info)
+    {
+        return NULL;
+    }
+
     suite_info->ret = NULL;
     suite_info->timed_out = 0;
     suite_info->size = size;
     suite_info->sem = alloc_sem;
-    
-    AllocateMemoryResource(size, allocCBR, (unsigned int)suite_info, TYPE_ID);
-    
+    suite_info->pool = pool;
+
+    if (continuous)
+    {
+        AllocateContinuousMemoryResource(size, allocCBR, (unsigned int)suite_info, type);
+    }
+    else
+    {
+        AllocateMemoryResource(size, allocCBR, (unsigned int)suite_info, type);
+    }
+
     int r = take_semaphore_nc(suite_info->sem, 100);
     if (r)
     {
         // signal to allocCBR that it needs to free suite_info
+#ifdef CONFIG_RSCMGR_POOLS
+        if (pool >= 0)
+        {
+            rscmgr_pool_request_waiting(pool);
+        }
+#endif
         suite_info->timed_out = 1;
         return NULL;
     }
-    
+
     struct memSuite *hSuite = suite_info->ret;
     _free(suite_info);
-    
+
     ASSERT((int)size <= hSuite->size);
-    
+
     return hSuite;
+}
+
+/* when size is set to zero, it will try to allocate the maximum possible block */
+static struct memSuite *shoot_malloc_suite_int(size_t size)
+{
+    return rscmgr_alloc_suite(size, RSCMGR_TYPE_ID, 0, -1);
 }
 
 static size_t largest_chunk_size(struct memSuite *hSuite)
@@ -348,6 +372,191 @@ size_t shoot_malloc_autodetect_contig(uint32_t requested_size)
     return max_contig_size;
 }
 
+#ifdef CONFIG_RSCMGR_POOLS
+/**
+ * Cameras with several RscMgr pools (RSCMGR_POOLS in consts.h, R8: big,
+ * 0xb and 0x58): shoot_malloc_suite(0) takes the largest size from each
+ * pool and joins them into one suite, the same way _srm_malloc_suite()
+ * packs SRM buffers. Modules (mlv_lite, silent...) see one suite.
+ *
+ * The RSCMGR_TYPE_ID pool (R8: generic) is not in the list: it stays
+ * available to _shoot_malloc, i.e. ML's own fio_malloc buffers.
+ *
+ * RscMgr queues a request that doesn't fit instead of failing it. Each
+ * pool keeps a count of its requests still waiting (they complete and are
+ * freed by allocCBR later); a pool with waiting requests is skipped, so a
+ * blocked pool doesn't hold up the others. This also skips the R8 big pool
+ * while RAW LV holds area 0x40.
+ */
+struct rscmgr_pool
+{
+    int type;               /* type ID for (Continuous)AllocateMemoryResource */
+    int continuous;         /* 1 = AllocateContinuousMemoryResource */
+};
+
+static const struct rscmgr_pool rscmgr_pools[] = RSCMGR_POOLS;
+
+static volatile int rscmgr_pending[COUNT(rscmgr_pools)];
+static GUARDED_BY(mem_sem) struct memSuite *rscmgr_parts[COUNT(rscmgr_pools)];
+
+static NO_THREAD_SAFETY_ANALYSIS void rscmgr_pool_request_waiting(int pool)
+{
+    rscmgr_pending[pool]++;
+}
+
+/* called from allocCBR (RscMgr task) when a timed out request completes */
+static NO_THREAD_SAFETY_ANALYSIS void rscmgr_pool_request_done(int pool)
+{
+    rscmgr_pending[pool]--;
+}
+
+static struct memSuite *rscmgr_pool_alloc(int pool, size_t size)
+{
+    return rscmgr_alloc_suite(size, rscmgr_pools[pool].type, rscmgr_pools[pool].continuous, pool);
+}
+
+static void rscmgr_pool_free(struct memSuite *suite)
+{
+    if (suite)
+    {
+        FreeMemoryResource(suite, freeCBR, 0);
+        take_semaphore_nc(free_sem, 0);
+    }
+}
+
+/* largest size a pool gives, in 4 MB steps (backup trick, as shoot_malloc_autodetect) */
+static size_t rscmgr_pool_autodetect(int pool)
+{
+    const size_t step = 4 * 1024 * 1024;
+
+    if (rscmgr_pending[pool] > 0)
+    {
+        return 0;
+    }
+
+    struct memSuite *backup = rscmgr_pool_alloc(pool, step);
+    if (!backup)
+    {
+        return 0;
+    }
+
+    size_t max_size = 0;
+    for (int size_mb = 4; size_mb < 1024; size_mb += 4)
+    {
+        size_t tested_size = size_mb * 1024 * 1024;
+        struct memSuite *test = rscmgr_pool_alloc(pool, tested_size);
+        if (!test)
+        {
+            break;
+        }
+        /* leave 1MB unallocated, just in case */
+        max_size = tested_size + step - 1024 * 1024;
+        rscmgr_pool_free(test);
+    }
+
+    /* the queued request completes now, and allocCBR frees it */
+    rscmgr_pool_free(backup);
+    for (int i = 0; i < 50 && rscmgr_pending[pool] > 0; i++)
+    {
+        msleep(10);
+    }
+
+    return max_size;
+}
+
+/* add the chunks of `part` to `*joined` (created on the first chunk) */
+static int rscmgr_join(struct memSuite **joined, struct memSuite *part)
+{
+    for (struct memChunk *chunk = GetFirstChunkFromSuite(part); chunk; chunk = GetNextMemoryChunk(part, chunk))
+    {
+        void *addr = GetMemoryAddressOfMemoryChunk(chunk);
+        int size = GetSizeOfMemoryChunk(chunk);
+        if (!addr)
+        {
+            return -1;
+        }
+
+        if (!*joined)
+        {
+            *joined = CreateMemorySuite(addr, size, 0);
+            if (!*joined)
+            {
+                return -1;
+            }
+        }
+        else
+        {
+            struct memChunk *copy = CreateMemoryChunk(addr, size, 0);
+            if (!copy)
+            {
+                return -1;
+            }
+            AddMemoryChunk(*joined, copy);
+        }
+    }
+    return 0;
+}
+
+static REQUIRES(mem_sem)
+void rscmgr_pools_free_all()
+{
+    if (rscmgr_joined)
+    {
+        /* frees our suite / chunk structures only, not the memory */
+        DeleteMemorySuite(rscmgr_joined);
+        rscmgr_joined = 0;
+    }
+    for (int i = 0; i < COUNT(rscmgr_pools); i++)
+    {
+        rscmgr_pool_free(rscmgr_parts[i]);
+        rscmgr_parts[i] = 0;
+    }
+}
+
+/* everything the pools can give, as one suite; NULL if none */
+static REQUIRES(mem_sem)
+struct memSuite *rscmgr_pools_malloc_suite()
+{
+    if (rscmgr_joined)
+    {
+        /* one at a time, like the full shoot_malloc suite */
+        return NULL;
+    }
+
+    /* list order matters: request the largest pool first */
+    for (int i = 0; i < COUNT(rscmgr_pools); i++)
+    {
+        size_t size = rscmgr_pool_autodetect(i);
+        if (size)
+        {
+            rscmgr_parts[i] = rscmgr_pool_alloc(i, size);
+        }
+        printf("[rscmgr] pool %d (type %x): %s\n", i, rscmgr_pools[i].type,
+               rscmgr_parts[i] ? format_memory_size(rscmgr_parts[i]->size) : "nothing");
+    }
+
+    struct memSuite *joined = 0;
+    for (int i = 0; i < COUNT(rscmgr_pools); i++)
+    {
+        if (rscmgr_parts[i] && rscmgr_join(&joined, rscmgr_parts[i]) < 0)
+        {
+            rscmgr_joined = joined;
+            rscmgr_pools_free_all();
+            return NULL;
+        }
+    }
+
+    if (!joined)
+    {
+        rscmgr_pools_free_all();
+        return NULL;
+    }
+
+    rscmgr_joined = joined;
+    return joined;
+}
+#endif // CONFIG_RSCMGR_POOLS
+
 REQUIRES(mem_sem)
 struct memSuite *_shoot_malloc_suite(size_t size)
 {
@@ -361,6 +570,14 @@ struct memSuite *_shoot_malloc_suite(size_t size)
     else
     {
         /* allocate as much as we can */
+#ifdef CONFIG_RSCMGR_POOLS
+        struct memSuite *joined = rscmgr_pools_malloc_suite();
+        if (joined)
+        {
+            shoot_full_suite = joined;
+            return joined;
+        }
+#endif
         size_t max_size = shoot_malloc_autodetect();
         struct memSuite * hSuite = shoot_malloc_suite_int(max_size);
         shoot_full_suite = hSuite;
@@ -399,8 +616,9 @@ struct memSuite * _shoot_malloc_suite_contig(size_t size)
     suite_info->timed_out = 0;
     suite_info->size = size;
     suite_info->sem = alloc_sem;
+    suite_info->pool = -1;
     
-    AllocateContinuousMemoryResource(size, allocCBR, (unsigned int)suite_info, TYPE_ID);
+    AllocateContinuousMemoryResource(size, allocCBR, (unsigned int)suite_info, RSCMGR_TYPE_ID);
 
     int r = take_semaphore_nc(suite_info->sem, 100);
     if (r)
@@ -470,7 +688,7 @@ void exmem_test()
     struct memChunk *hChunk = 0;
     
     msleep(2000);
-    AllocateMemoryResource(1024*1024*32, allocCBR, (unsigned int)&hSuite, TYPE_ID);
+    AllocateMemoryResource(1024*1024*32, allocCBR, (unsigned int)&hSuite, RSCMGR_TYPE_ID);
     int r = take_semaphore_nc(alloc_sem, 100);
     if (r)
         return;

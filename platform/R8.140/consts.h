@@ -110,6 +110,21 @@
 #define EDMAC_DX_CHANNEL_TABLE    0xe1bf6d04    // ROM, 0x14 bytes per EDMAC channel: {base, base2, slot, pid, flags}
 #define EDMAC_DX_CHANNEL_COUNT    0x6f
 
+/**
+ * RscMgr pools (old API), type ID = 4th argument of (Continuous)AllocateMemoryResource.
+ * 0x50 (older models) and unknown IDs assert in RscMgrOldApiWrapper.c.
+ * Measured on R8 1.4.0 (largest single request, one chunk each):
+ *   generic : plain 0, 1, 2, 4, 8, 0xc / cont 0, 4, 6, 9, 0xa, 0xc     47 MB  1:062d6070
+ *   0xb     : plain 0xb / cont 0xb                                     47 MB  1:092d6000
+ *   big     : plain 0x5, 0x52, 0x56 / cont 0x7, 0x52, 0x53, 0x5a, 0x5b 170 MB  2:11a84000
+ *             (blocked while RAW LV holds area 0x40)
+ *   0x58    : cont 0x58                                                24 MB  2:1e708080
+ *   cont 0x57 / 0x59 return nothing.
+ * 0xb and big have no CPU address in RscMgr: see CONFIG_RSCMGR_IBUS (exmem.c).
+ */
+#define RSCMGR_TYPE_ID            0             // generic pool: shoot_malloc / fio_malloc
+#define RSCMGR_POOLS              { { 0x52, 0 }, { 0x0b, 0 }, { 0x58, 1 } }   // shoot_malloc_suite(0), largest first
+
 /* WRONG! */
 #define HALFSHUTTER_PRESSED         0
 
