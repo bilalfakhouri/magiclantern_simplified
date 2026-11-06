@@ -210,3 +210,26 @@ unsigned int UnLockEngineResources(struct LockEntry *lockEntry)
 {
     return 0;
 }
+
+// SRM doesnt, work, substitute those two.
+struct memSuite * srm_malloc_suite(int num_requested_buffers)
+{
+    return 0; // always fail
+}
+
+void srm_free_suite(struct memSuite * suite)
+{
+    return;
+}
+
+// ErrCardForLVApp_handler DNE on R... maybe because it is always LV?
+// We need only address of that handler so this should do.
+void ErrCardForLVApp_handler()
+{
+    return;
+}
+
+struct LockEntry *CreateResLockEntry(uint32_t *resIds, uint32_t resIdCount)
+{
+    return 0;
+}

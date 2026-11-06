@@ -33,3 +33,4 @@
 
 // RAW LiveView: imgc_save_raw + EDMAC ch 8, see consts.h. Needed by mlv_lite.
 #define CONFIG_RAW_LIVEVIEW
+#define FEATURE_PICSTYLE

@@ -17,6 +17,9 @@
 /** has LV: enables the PROP_LV_ACTION handler that sets `lv` (without it lv is always 0) **/
 #define CONFIG_LIVEVIEW
 
+/** R8 acutally has dedicated movie mode, this is temporal until we fix is_movie_mode() on R8, needed for mlv_lite */
+#define CONFIG_NO_DEDICATED_MOVIE_MODE
+
 /** state object hooks: LiveView vsync from SensorDriverState (wait_lv_frames etc.),
  *  see platform/R8.140/include/platform/state-object.h */
 #define CONFIG_STATE_OBJECT_HOOKS

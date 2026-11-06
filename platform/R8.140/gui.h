@@ -23,6 +23,8 @@
 #define BGMT_PRESS_ZOOM_IN           0x1C
 #define BGMT_UNPRESS_ZOOM_IN         0x1D
 
+#define BGMT_REC                     0x2D  //0x2E UNPRESS
+
 #define BGMT_PRESS_RIGHT             0x3C
 #define BGMT_UNPRESS_RIGHT           0x3D
 #define BGMT_PRESS_LEFT              0x3E
