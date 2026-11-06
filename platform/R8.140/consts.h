@@ -130,6 +130,42 @@
 // #define EDMAC_DX_M2M_RESIDS    { 0x90002 }
 
 /**
+ * RAW LiveView (CONFIG_RAW_LIVEVIEW).
+ *
+ * RAW LV stream: Prima::Mem1WritePath.c writes the Bayer data on EDMAC ch 8
+ * (block 0xd243xxxx, slot 3 - the DIGIC 8 equivalent is R ch 3 "WR_M1",
+ * 0xd0420200). Setup 0xe035a75a hard-codes ch 8. Every frame, 0xe035a972
+ * (via 0xe035aab4) recomputes the write address and reprograms the channel:
+ *     state+0x80  u64 IBus base of the frame buffer chunk (alloc 0xe035a8ae,
+ *                 chunk handle at +0x34, 64-bit chunk API)
+ *     state+0x88  u64 IBus address for this frame = base, or in ring mode
+ *                 (+0x44 == 1) base + stride(+0x68) * index(+0x6c)  [0xe035ac1c]
+ *     set_address64(8, *(u64 *)(state + 0x88))                       [0xe0845824]
+ * Measured (movie LV, 1.4.0): 2064x688 @ 14 bpp, pitch 3612 (xb 0xe1c, yb 0x2af),
+ * Bayer, black 2048, buffer IBus 2:10080000 = CPU 0x30080000 (DRAM Ch2),
+ * stride 0x25eb40, ring off (+0x44 = 0, +0x20 = 35 frames capacity), address
+ * constant across frames.
+ * So anything written to the ch 8 registers (raw_lv_redirect_edmac) only lasts
+ * until Canon's next per-frame update; +0x88 is recomputed every frame too.
+ * The address register holds only the low 32 bits of an IBus address;
+ * `region` (0xa0) holds the DRAM channel (0x22 = DRAM Ch2).
+ *
+ * Enabled with call("imgc_save_raw", 1) - R8's lv_save_raw. There is no
+ * lv_set_mm equivalent: Mem1WritePath only carries Bayer data (only .mmr
+ * dump naming exists on R8). The tap point is imgc_set_raw_wp (SAP HEAD = 0,
+ * default; refused while saving).
+ *
+ * Pixel packing: LSB-first 14-bit bitstream (4 px in 7 bytes), not ML's
+ * struct raw_pixblock layout, see CONFIG_RAW_LE14. Pack unit for ch 8:
+ * unit 0xa = 0xd24315c0 (ROM tables 0xe1bf6184: 4 unit indices per channel,
+ * 0xe1bf75b0: {reg base, connect reg} per unit), control at +0x34 = 0x21,
+ * written once per stream start by 0xe0846810.
+ */
+#define RAW_LV_EDMAC_CHANNEL_ADDR 0xd2430200    // channel 8, EDMAC block 0xd243xxxx, slot 3. Prima::Mem1WritePath.c
+#define RAW_LV_EDMAC_CHANNEL_NUM  8
+#define RAW_LV_IMGC_STATE         0x16038       // Mem1WritePath state: +0x28 save_raw, +0x54 bpp, +0x80 u64 buffer base, +0x88 u64 current write addr (IBus)
+
+/**
  * RscMgr pools (old API), type ID = 4th argument of (Continuous)AllocateMemoryResource.
  * 0x50 (older models) and unknown IDs assert in RscMgrOldApiWrapper.c.
  * Measured on R8 1.4.0 (largest single request, one chunk each):

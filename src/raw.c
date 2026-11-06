@@ -228,7 +228,7 @@ static int get_default_white_level()
  * Hardcode black level on models where it's fixed.
  * Will only be used if autodetection gives a close result.
  */
-#if defined(EVF_STATE)  /* 60D and newer */
+#if defined(EVF_STATE) || defined(SENSOR_DRIVER_STATE)  /* 60D and newer */
 #define BLACK_LEVEL 2047
 #endif
 
@@ -717,7 +717,13 @@ static int raw_lv_buffer_size = 0;
 /* our default LiveView buffer (which can be DEFAULT_RAW_BUFFER or allocated) */
 static void* raw_get_default_lv_buffer()
 {
-#if !defined(CONFIG_EDMAC_RAW_SLURP)
+#if defined(CONFIG_DIGIC_X) && !defined(CONFIG_EDMAC_RAW_SLURP)
+    /* DIGIC X: ram_addr is only the low word of a 64-bit IBus address, the
+     * DRAM channel is in the region register. Canon's RAW LV buffer is on
+     * Ch2 on R8 (region 0x22). Translate through the MEMIF windows, see
+     * src/ibus.h. No shamem on DIGIC 8/X: MMIO is read directly. */
+    return (void *)CACHEABLE(edmac_mmio_get_cpu(raw_lv_edmac));
+#elif !defined(CONFIG_EDMAC_RAW_SLURP)
     return CACHEABLE(shamem_read((uint32_t)&(raw_lv_edmac->ram_addr)));
 #else
     return CACHEABLE(raw_lv_buffer);
@@ -786,6 +792,16 @@ static int raw_lv_get_resolution(int* width, int* height)
 #endif
     return 1;
 
+#elif defined(CONFIG_DIGIC_X)
+    /* autodetect raw size from EDMAC. DIGIC X keeps x and y in separate
+     * registers (xb = bytes per line, yb = lines - 1), see src/edmac.h.
+     * Mem1WritePath programs only xb / yb, at 14 bpp by default. */
+    uint32_t pitch = raw_lv_edmac->xb & 0x3FFFE;        /* field widths: see struct edmac_mmio */
+    if (!pitch) return 0;
+
+    *width  = pitch * 8 / 14;
+    *height = MAX((raw_lv_edmac->yn & 0xFFFF) + 1, (raw_lv_edmac->yb & 0x7FFF) + 1);
+    return 1;
 #else // ~CONFIG_EDMAC_RAW_SLURP
     /* autodetect raw size from EDMAC */
     uint32_t lv_raw_height = shamem_read((uint32_t)&(raw_lv_edmac->yn_xn)); // yn_xn??  For height??
@@ -1080,6 +1096,13 @@ int raw_update_params_work()
         // Horizontal y="0" height="38"
         skip_top    = 32;
         skip_left   = 86;
+        #endif
+
+        #ifdef CONFIG_R8
+        // while idle  (not recording H.264) and in all video modes, R8 uses 5x3 binning mode --> 2064x688 RAW frame size
+        skip_top    = 16;
+        skip_left   = 56;
+        skip_bottom = 1;
         #endif
 
         #ifdef CONFIG_6D2
@@ -1401,7 +1424,12 @@ int raw_update_params_work()
          * so we do this by compensating the white level manually
          * warning: this may exceed 16383!
          */
+        #ifdef SHAD_GAIN_REGISTER
         int shad_gain = shamem_read(SHAD_GAIN_REGISTER);
+        #else
+        /* not found on DIGIC X yet: skip the photo LV white level correction */
+        int shad_gain = 3444;
+        #endif
 
         raw_info.white_level -= raw_info.black_level;
         raw_info.white_level = raw_info.white_level * 3444 / shad_gain; /* 0.25 EV correction, so LiveView matches CR2 exposure */
@@ -2148,6 +2176,11 @@ void FAST raw_lv_redirect_edmac(void* ptr)
 {
     #ifdef CONFIG_EDMAC_RAW_SLURP
     redirected_raw_buffer = (void*) CACHEABLE(ptr);
+    #elif defined(CONFIG_DIGIC_X)
+    /* region (DRAM channel) + low IBus word. Note Mem1WritePath reprograms
+     * ch 8 from its own state every frame (R8 0xe035aab4), so this holds
+     * for the frame being set up only - same contract as RAW_SLURP. */
+    edmac_mmio_set_cpu(raw_lv_edmac, CACHEABLE(ptr));
     #else
     raw_lv_edmac->ram_addr = (uint32_t)CACHEABLE(ptr);
     #endif
@@ -2489,6 +2522,16 @@ static void raw_lv_enable()
     lv_raw_enabled = 1;
 
 #ifndef CONFIG_EDMAC_RAW_SLURP
+#if defined(CONFIG_DIGIC_X)
+    // DIGIC X: lv_save_raw / lv_set_mm are gone. The LV RAW stream is
+    // Prima::Mem1WritePath, controlled by the imgc_* eventprocs:
+    //   imgc_save_raw(1)    latches the "save" flag, Mem1WritePath then sets
+    //                       up EDMAC ch 8 at the next frame (0xe035a972)
+    //   imgc_set_raw_wp(n)  SAP tap point, 0 = HEAD (default); refused while
+    //                       saving, so we leave it alone
+    // There is no YUV/RAW selector (lv_set_mm) - R8 only writes Bayer data.
+    call("imgc_save_raw", 1);
+#else
 #ifdef CONFIG_DIGIC_VIII
     // On D8, lv_save_raw saves as YUV by default.
     // lv_set_mm configs this, here we select RAW.
@@ -2498,6 +2541,7 @@ static void raw_lv_enable()
     //call("lv_set_raw_wp", 0);
 #endif
     call("lv_save_raw", 1);
+#endif
 #endif
 
 #ifdef DEFAULT_RAW_BUFFER
@@ -2539,7 +2583,11 @@ static void raw_lv_disable()
     raw_info.buffer = 0;
 
 #ifndef CONFIG_EDMAC_RAW_SLURP
+#if defined(CONFIG_DIGIC_X)
+    call("imgc_save_raw", 0);
+#else
     call("lv_save_raw", 0);
+#endif
 #endif
 
 #ifdef CONFIG_ALLOCATE_RAW_LV_BUFFER
@@ -2638,6 +2686,14 @@ void raw_lv_release()
 
 void raw_lv_request_bpp(int bpp)
 {
+#if defined(CONFIG_DIGIC_X)
+    /* No PACK32 register. On R8 Mem1WritePath picks the EDMAC pack mode
+     * from imgc state +0x54 (12 / 14 / 16 bpp -> pack 4 / 5 / 6) when it
+     * sets up ch 8 (0xe035a75a), and resets it to 14 on each LV Mem1
+     * allocation. Not wired up yet: the stream stays at 14 bpp. */
+    (void)bpp;
+    return;
+#else
     take_semaphore(raw_sem, 0);
 
     /* raw bit depth setup is done from PACK32_MODE register (mask 0x131) */
@@ -2694,6 +2750,7 @@ void raw_lv_request_bpp(int bpp)
     }
 
     give_semaphore(raw_sem);
+#endif // !CONFIG_DIGIC_X
 }
 
 void raw_lv_request_digital_gain(int gain)
