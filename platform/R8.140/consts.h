@@ -101,6 +101,13 @@
 
 #define YUV422_HD_BUFFER_DMA_ADDR 0x0 // it expects this to be shamem_read(some_DMA_ADDR)
 
+/**
+ * DIGIC X IBus, see src/ibus.h.
+ */
+#define MEMIF_WINDOW_REGS         0xd2044080    // MMIO, 12 fixed memory windows (boot code 0xe000a880)
+#define MEMIARB_PID_TABLE         0x6278        // RAM, 253 bytes per DRAM channel, filled by 0xe0956fee
+#define MEMIARB_ENABLED           0x620c        // RAM, MemiArbiter check (0xe09225bc) active when != 0
+
 /* WRONG! */
 #define HALFSHUTTER_PRESSED         0
 
