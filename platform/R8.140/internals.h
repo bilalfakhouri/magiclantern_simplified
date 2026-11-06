@@ -31,3 +31,7 @@
 
 #define CONFIG_TASK_STRUCT_V2_SMP
 #define CONFIG_TASK_ATTR_STRUCT_V5
+
+/** RscMgr pools described by an IBus base (0xb, big): GetMemoryAddressOfMemoryChunk
+ *  is implemented in exmem.c on top of GetIBusAddressOfMemoryChunk + src/ibus.h */
+#define CONFIG_RSCMGR_IBUS

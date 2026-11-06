@@ -179,7 +179,8 @@ THUMB_FN(0xe0a3c8ec, FreeMemoryResource)                    // missing debug str
 //THUMB_FN(0xe0849cbc,  ConcatMemorySuite)                  // Via debug msg with fn name (after call). Not used by ML, but utilizes functions below:
 THUMB_FN(0xe0849300,  GetFirstChunkFromSuite)               // In ConcatMemorySuite(), First function called.
 THUMB_FN(0xe0849be6,  GetNextMemoryChunk)                   // In ConcatMemorySuite(), function called in first loop with param2 passed as 1st arg
-THUMB_FN(0xe0849076,  GetMemoryAddressOfMemoryChunk)        // In ConcatMemorySuite(), uses param2 from GetNextMemoryChunk() as own param1
+THUMB_FN(0xe0849076,  _GetMemoryAddressOfMemoryChunk)       // In ConcatMemorySuite(), uses param2 from GetNextMemoryChunk() as own param1.
+                                                            // Asserts on 0xb / big pool chunks: wrapped by exmem.c (CONFIG_RSCMGR_IBUS)
 THUMB_FN(0xe08490c6,  GetIBusAddressOfMemoryChunk)          // u64 (chunk), System::MemifApiWrapper. Works for every pool; asserts on chunk type 1.
                                                             // 0xb / big pools: owner base64 + offset (0xe01c50ea), else MemifWindow_GetIBusAddress(cpu)
 THUMB_FN(0xe0848cd0,  CreateMemoryChunk)                    // In ConcatMemorySuite(), just after calls to GetMemoryAddressOfMemoryChunk(); also called from CreateMemorySuite()

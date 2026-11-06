@@ -64,6 +64,40 @@ int GetSizeOfMemoryChunk(struct memChunk *chunk)
     return chunk->size;
 }
 
+#ifdef CONFIG_RSCMGR_IBUS
+#include "ibus.h"
+
+/**
+ * DIGIC X: some RscMgr pools (R8: 0xb and the big pool) are described by a
+ * 64-bit IBus base instead of a CPU address. Canon's
+ * GetMemoryAddressOfMemoryChunk asserts on their chunks, although they are
+ * ordinary RAM that the fixed memory windows map.
+ *
+ * Same decision as the ROM getter (R8 0xe0849076):
+ *   chunk type 1 / 2, no owner heap, or owner without IBus base
+ *       -> the ROM getter (unchanged behaviour)
+ *   owner with IBus base (the case the ROM asserts on)
+ *       -> GetIBusAddressOfMemoryChunk + ibus_to_cpu
+ * The result is uncached, like the ROM's (e.g. 0x462d6070 for the generic pool),
+ * so callers (mlv_lite, silent, mem.c ...) see no difference.
+ */
+void *GetMemoryAddressOfMemoryChunk(struct memChunk *chunk)
+{
+    CHECK_CHUNK_SIGNATURE(chunk);
+
+    uint32_t owner = (uint32_t)chunk->heap_ptr;     /* +0x14 */
+    int type = chunk->mem_type;                     /* +0x24 */
+    if (type == 1 || type == 2 || !owner ||
+        (MEM(owner + 0x40) | MEM(owner + 0x44)) == 0)   /* owner's u64 IBus base (0xe01c4d96) */
+    {
+        return _GetMemoryAddressOfMemoryChunk(chunk);
+    }
+
+    uint32_t cpu = ibus_to_cpu(GetIBusAddressOfMemoryChunk(chunk));
+    return cpu ? UNCACHEABLE(cpu) : NULL;           /* NULL: no CPU window (DRAM Ch3) */
+}
+#endif // CONFIG_RSCMGR_IBUS
+
 static void freeCBR(unsigned int a)
 {
     give_semaphore_nc(free_sem);

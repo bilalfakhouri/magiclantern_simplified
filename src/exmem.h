@@ -62,6 +62,12 @@ struct memChunk * GetNextMemoryChunk(struct memSuite * suite, struct memChunk * 
 int GetSizeOfMemoryChunk(struct memChunk * chunk);
 void* GetMemoryAddressOfMemoryChunk(struct memChunk * chunk);
 
+#ifdef CONFIG_RSCMGR_IBUS
+/* ROM getters; GetMemoryAddressOfMemoryChunk() above is ML's wrapper (exmem.c) */
+void* _GetMemoryAddressOfMemoryChunk(struct memChunk * chunk);
+uint64_t GetIBusAddressOfMemoryChunk(struct memChunk * chunk);
+#endif
+
 struct memSuite * CreateMemorySuite(void* first_chunk_address, size_t first_chunk_size, uint32_t flags);
 void DeleteMemorySuite(struct memSuite * suite);
 struct memChunk * CreateMemoryChunk(void* address, size_t size, uint32_t flags);
