@@ -112,6 +112,24 @@
 #define XIMR_PID                  0x12          // bus master pid of Ximr (display): DRAM Ch1 / Ch2 only
 
 /**
+ * EDMAC mem2mem through Engine::MemoryToMemoryEsub1 (CONFIG_EDMAC_MEMCPY_DX, src/edmac-memcpy-dx.c).
+ * Esub1 accepts rd 55..67 and wr 1..18. rd 66 and wr 6 are both in block 0xd243
+ * (EDMAC ch 6..18, 66, 67), which ML powers itself (EDMAC_DX_M2M_SUBCHIPS); both are
+ * free in movie and photo LiveView, support transfer modes 0..2 and may use DRAM Ch1..3.
+ * Measured rd 66 -> wr 6: mode 0 ~650 MB/s, mode 1 ~1.2 GB/s, mode 2 1.75..2.06 GB/s.
+ * (Was wr 14: modes 0..1 only, not allowed on DRAM Ch3; mode 2 there asserts.)
+ */
+#define EDMAC_DX_M2M_RD_CH        66            // pid 0x6d
+#define EDMAC_DX_M2M_WR_CH        6             // free in both modes, used by no Canon path seen
+#define EDMAC_DX_M2M_SUBCHIPS     { 1, 9, -1 }  // powers block 0xd243, same list as Mem1WritePath
+#define EDMAC_DX_M2M_MODE         2
+/* ERMGR: candidate is SHTVP_MEMTOMEMESUB1 {0x20042, 0x2004c, 0x90002} (entry 0 of the
+ * SHTVP lock table 0xe1361bf8, 31 x 0x50 bytes, created by 0xe01472e8). 0x9000x look like
+ * the Esub module IDs (SUB5 -> 0x90003, COPYESUB6 -> 0x90001), so { 0x90002 } alone would
+ * exclude Canon's Esub1 users. Not verified which EDMAC channels 0x2004x stand for. */
+// #define EDMAC_DX_M2M_RESIDS    { 0x90002 }
+
+/**
  * RscMgr pools (old API), type ID = 4th argument of (Continuous)AllocateMemoryResource.
  * 0x50 (older models) and unknown IDs assert in RscMgrOldApiWrapper.c.
  * Measured on R8 1.4.0 (largest single request, one chunk each):

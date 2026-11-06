@@ -269,3 +269,45 @@ DATA_PTR(   0x1E838,  LiveViewApp_dialog)                   // 0x1E838 is StartL
  **/
 //THUMB_FN(0xe07d6458, WINSYS_CreateDialogBox)              // Equiv. of `CreateDialogBox()`. Forces layer ID to 0 (GUI) // R5
 //THUMB_FN(0xe07d6204, WINSYS_CreateDialogBoxEx)            // Actual logic. Takes one more argument than CreateDialogBox() (layer ID) // R5
+
+/**
+ * EDMAC mem2mem (CONFIG_EDMAC_MEMCPY_DX, src/edmac-memcpy-dx.c)
+ * Engine::MemoryToMemoryEsub1.c. State at 0x45358 (.data image at ROM 0xe234c1e0).
+ * R 1.8.0 equivalents in comments (kitor, raw_draft_v2).
+ */
+THUMB_FN(0xe0dc5d88, MemToMemE1_SetupEDMAC)                 // ({rd 55..67, wr 1..18}); 2 file asserts. R: 0xe0712bac
+THUMB_FN(0xe0dc5ea6, MemToMemE1_Term)                       // unregister CBRs, free HW combiner slot. R: 0xe0712c86 ("ClearEdmacCBR")
+THUMB_FN(0xe0dc5ec6, MemToMemE1_RegisterCBR)                // (cbr, arg) -> state[0], state[4]. R: 0xe0712ca0
+THUMB_FN(0xe0dc5ed0, MemToMemE1_ResetCBR)                   // state[0] = nullsub. R: 0xe0712caa
+THUMB_FN(0xe0dc5edc, MemToMemE1_Start)                      // start wr, start rd, kick rd. R: 0xe0712cb6
+THUMB_FN(0xe0dc5ef6, MemToMemE1_Stop)                       // stop rd, stop wr. New on DX, called first by Canon's stop (0xe0d9c280)
+THUMB_FN(0xe0dc5fc0, MemToMemE1_SetAddress)                 // ({u64 src, u64 dst}) IBus addresses! R: 0xe0712d86 ({u32, u32})
+THUMB_FN(0xe0dc5ff0, MemToMemE1_SetSize)                    // ({edmac_info *src, *dst, mode}). R: 0xe0712da0
+//THUMB_FN(0xe0dc6020, MemToMemE1_SetParam)                 // new on DX: geometry -> sizes/offsets/pack. Unused.
+
+/**
+ * Per-channel EDMAC primitives used by the above (Engine::Edmac.c), reference only.
+ * EDMAC channel table: 0xe1bf6d04, 0x14 bytes / channel {base, base2, slot, pid, flags}.
+ */
+//THUMB_FN(0xe0845824, edmac_set_address64)                 // (edmac_ch, u64 ibus): IBus check, MemiArbiter pid, sets region + 0xa4. R: 0xe05364b6 (ch, u32)
+//THUMB_FN(0xe084440a, edmac_set_region)                    // (edmac_ch, dram_ch): MemiArbiter check, then 0xa0 = dram_ch|dram_ch<<4, or 0xa8 = dram_ch (flag 0x80/0x40)
+//THUMB_FN(0xe084587c, edmac_set_size)                      // (edmac_ch, edmac_info *): 0x38..0x70. R: 0xe05364c2
+//THUMB_FN(0xe08461a2, edmac_set_transfer_mode)             // (edmac_ch, 0..3): 0xc4 bits 1..0, asserts on unsupported modes. R: 0xe05369b8 (0xc0)
+//THUMB_FN(0xe08443be, StartEDmac)                          // (edmac_ch): 0xb8 = 3, or 0xb4 = 1 / 0xc0 = 1 (flag 0x80 / 0x40). R: 0xe05362d4
+//THUMB_FN(0xe0844202, StartEDmac_rd)                       // (edmac_ch): same writes, read channels only (asserts flag bit 1)
+//THUMB_FN(0xe0844db2, ConnectWriteEDmac_sel)               // (edmac_ch, selector). R: 0xe0535ee2
+//THUMB_FN(0xe084576e, StopEDmac_maybe)                     // (edmac_ch)
+//THUMB_FN(0xe092f20c, MemifWindow_GetIBusAddress)          // u64 (void *cpu), asserts >= 0xC0000000 - see src/ibus.h
+//THUMB_FN(0xe092f246, MemifWindow_GetCpuAddress)           // uncached cpu (u64 ibus), asserts if unmapped - see src/ibus.h
+
+/** Engine::PwrMng.c - sub-chip list, terminated by any value >= 11. R used IDs 0..6 and terminator 7. */
+THUMB_FN(0xe0b07da2, PwrMng_WakeSubChips)                   // ({1, 9, -1}) powers EDMAC ch 6..18, 66, 67 (block 0xd243). R: 0xe0671742
+THUMB_FN(0xe0b07dd4, PwrMng_SuspendSubChips)                // R: 0xe0671770
+
+/**
+ * ERMGR resource locks. R8 replaced R's CreateResLockEntry(ids, n) with named entries.
+ * Manager struct 0x6e30: [0] signature, [4] entry list (linked via entry+0x2c).
+ */
+THUMB_FN(0xe0857e32, ErscCreateLockEntry)                   // (name, u32 *ids, n) e.g. ("ImgcMm1W", {0x10050, 0x20041}, 2). R: 0xe054761e (ids, n)
+THUMB_FN(0xe085801e, ErscLockResources)                     // (entry, timeout ms); bit 0 = error. R: 0xe0547806 (entry)
+THUMB_FN(0xe08580ea, ErscUnLockResources)                   // (entry). R: 0xe05478a6
