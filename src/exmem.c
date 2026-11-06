@@ -218,6 +218,102 @@ unsigned int exmem_clear(struct memSuite *hSuite, char fill)
     return written;
 }
 
+/* exmem_ibus_alloc: memory for bus masters, see exmem.h */
+extern void *_AllocateMemory(size_t size);
+extern void  _FreeMemory(void *ptr);
+
+enum { IBUS_SRC_NONE, IBUS_SRC_ML, IBUS_SRC_MALLOC, IBUS_SRC_ALLOCMEM };
+
+static void *ibus_src_alloc(int source, uint32_t size)
+{
+    switch (source)
+    {
+        case IBUS_SRC_ML:       return __mem_malloc(size, MEM_TEMPORARY | MEM_DMA, __FILE__, __LINE__);
+        case IBUS_SRC_MALLOC:   return _malloc(size);
+        case IBUS_SRC_ALLOCMEM: return _AllocateMemory(size);
+    }
+    return NULL;
+}
+
+static void ibus_src_free(int source, void *raw)
+{
+    switch (source)
+    {
+        case IBUS_SRC_ML:       __mem_free(raw);    break;
+        case IBUS_SRC_MALLOC:   _free(raw);         break;
+        case IBUS_SRC_ALLOCMEM: _FreeMemory(raw);   break;
+    }
+}
+
+int exmem_ibus_alloc(struct ibus_buf *buf, uint32_t size, uint32_t align, int pid, int flags)
+{
+    static const int long_lived[] = { IBUS_SRC_MALLOC, IBUS_SRC_ALLOCMEM, IBUS_SRC_NONE };
+    static const int temporary[]  = { IBUS_SRC_ML, IBUS_SRC_MALLOC, IBUS_SRC_ALLOCMEM, IBUS_SRC_NONE };
+    const int *sources = (flags & IBUS_BUF_LONG_LIVED) ? long_lived : temporary;
+
+    memset(buf, 0, sizeof(*buf));
+
+    /* at least one cache line, so the uncached buffer shares no line with other data */
+    if (align < 32)
+    {
+        align = 32;
+    }
+    if (!size || (align & (align - 1)))
+    {
+        return -1;
+    }
+    uint32_t rounded = (size + align - 1) & ~(align - 1);
+
+    for (int i = 0; sources[i] != IBUS_SRC_NONE; i++)
+    {
+        void *raw = ibus_src_alloc(sources[i], rounded + align);
+        if (!raw)
+        {
+            continue;
+        }
+
+        uint32_t aligned = ((uint32_t)raw + align - 1) & ~(align - 1);
+        void *cpu = UNCACHEABLE(aligned);
+        uint64_t ibus = 0;
+
+#ifdef CONFIG_RSCMGR_IBUS
+        ibus = cpu_to_ibus(cpu);
+        if (!ibus || (pid >= 0 && memiarb_allowed(pid, IBUS_DRAM_CH(ibus)) == 0))
+        {
+            /* not RAM, or a DRAM channel this bus master may not use */
+            ibus_src_free(sources[i], raw);
+            continue;
+        }
+#else
+        (void)pid;
+#endif
+
+        /* no dirty cache line may later overwrite what is written uncached */
+        sync_caches();
+
+        buf->cpu    = cpu;
+        buf->ibus   = ibus;
+        buf->size   = size;
+        buf->raw    = raw;
+        buf->source = sources[i];
+        return 0;
+    }
+
+    return -1;
+}
+
+void exmem_ibus_free(struct ibus_buf *buf)
+{
+    if (buf && buf->raw)
+    {
+        ibus_src_free(buf->source, buf->raw);
+    }
+    if (buf)
+    {
+        memset(buf, 0, sizeof(*buf));
+    }
+}
+
 /**
  * Resource type ID, the 4th argument of AllocateMemoryResource() and
  * AllocateContinuousMemoryResource(): which RscMgr pool shoot_malloc uses.

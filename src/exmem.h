@@ -44,6 +44,34 @@ struct memSuite * shoot_malloc_suite_contig(size_t size);
 struct memSuite * srm_malloc_suite(int num_requested_buffers);
 void srm_free_suite(struct memSuite * suite);
 
+/**
+ * Memory for a bus master (EDMAC, Ximr...): aligned, uncached CPU address plus
+ * its 64-bit IBus address (DIGIC X with CONFIG_RSCMGR_IBUS; 0 elsewhere).
+ * On DIGIC X the buffer is checked against the MemiArbiter table for `pid`
+ * (pid < 0: only check that it is on a DRAM channel), so the ROM never sees
+ * an address it would assert on.
+ *
+ * IBUS_BUF_LONG_LIVED: kept for a long time (e.g. a display layer): taken
+ * from the heap (malloc, then AllocateMemory), never from shoot memory,
+ * which Canon expects to be empty for some operations (Err 70).
+ * Without it, ML's allocator (fio_malloc path) is tried first.
+ *
+ * Returns 0 on success, -1 on failure (buf is zeroed).
+ */
+struct ibus_buf
+{
+    void     *cpu;          /* uncached CPU address, aligned */
+    uint64_t  ibus;         /* IBus address of cpu, 0 if not DIGIC X */
+    uint32_t  size;
+    void     *raw;          /* exmem's bookkeeping: pointer to free */
+    int       source;
+};
+
+#define IBUS_BUF_LONG_LIVED 1
+
+int  exmem_ibus_alloc(struct ibus_buf *buf, uint32_t size, uint32_t align, int pid, int flags);
+void exmem_ibus_free(struct ibus_buf *buf);
+
 /* dump the contents of a memsuite */
 unsigned int exmem_save_buffer(struct memSuite * hSuite, char *file);
 

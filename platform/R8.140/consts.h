@@ -109,6 +109,7 @@
 #define MEMIARB_ENABLED           0x620c        // RAM, MemiArbiter check (0xe09225bc) active when != 0
 #define EDMAC_DX_CHANNEL_TABLE    0xe1bf6d04    // ROM, 0x14 bytes per EDMAC channel: {base, base2, slot, pid, flags}
 #define EDMAC_DX_CHANNEL_COUNT    0x6f
+#define XIMR_PID                  0x12          // bus master pid of Ximr (display): DRAM Ch1 / Ch2 only
 
 /**
  * RscMgr pools (old API), type ID = 4th argument of (Continuous)AllocateMemoryResource.
