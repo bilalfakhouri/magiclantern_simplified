@@ -180,6 +180,8 @@ THUMB_FN(0xe0a3c8ec, FreeMemoryResource)                    // missing debug str
 THUMB_FN(0xe0849300,  GetFirstChunkFromSuite)               // In ConcatMemorySuite(), First function called.
 THUMB_FN(0xe0849be6,  GetNextMemoryChunk)                   // In ConcatMemorySuite(), function called in first loop with param2 passed as 1st arg
 THUMB_FN(0xe0849076,  GetMemoryAddressOfMemoryChunk)        // In ConcatMemorySuite(), uses param2 from GetNextMemoryChunk() as own param1
+THUMB_FN(0xe08490c6,  GetIBusAddressOfMemoryChunk)          // u64 (chunk), System::MemifApiWrapper. Works for every pool; asserts on chunk type 1.
+                                                            // 0xb / big pools: owner base64 + offset (0xe01c50ea), else MemifWindow_GetIBusAddress(cpu)
 THUMB_FN(0xe0848cd0,  CreateMemoryChunk)                    // In ConcatMemorySuite(), just after calls to GetMemoryAddressOfMemoryChunk(); also called from CreateMemorySuite()
 THUMB_FN(0xe0849270,  AddMemoryChunk)                       // In ConcatMemorySuite(), just after calls to CreateMemoryChunk()
 THUMB_FN(0xe08497a8,  CreateMemorySuite)                    // One of just a few xrefs of CreateMemoryChunk(); String "PackMem.c", calls malloc(0x18)
