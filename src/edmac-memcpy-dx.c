@@ -231,9 +231,8 @@ static int m2m_mode_supported(uint32_t mode)
  * ROM set_address asserts on: DRAM channel not 1..3, or (arbiter enabled)
  * bus master not registered on that DRAM channel. Returns IBus addr or 0.
  */
-static uint64_t m2m_buffer_ibus(const void *cpu, uint32_t edmac_ch)
+static uint64_t m2m_check_ibus(uint64_t ibus, uint32_t edmac_ch)
 {
-    uint64_t ibus = cpu_to_ibus(cpu);
     uint32_t dram_ch = IBUS_DRAM_CH(ibus);
     if (dram_ch < 1 || dram_ch > 3)
     {
@@ -255,15 +254,16 @@ static uint64_t m2m_buffer_ibus(const void *cpu, uint32_t edmac_ch)
  * Prima::MemoryToMemory.c start (0xe0d9c224) + stop (0xe0d9c280).
  * Blocking, task context only. Returns 0 on success.
  */
-static int m2m_transfer(const void *src, const void *dst,
+static int m2m_transfer(uint64_t src, uint64_t dst,
                         struct edmac_info *src_info, struct edmac_info *dst_info,
                         uint32_t bytes)
 {
-    uint64_t src_ibus = m2m_buffer_ibus(src, EDMAC_DX_M2M_RD_CH);
-    uint64_t dst_ibus = m2m_buffer_ibus(dst, EDMAC_DX_M2M_WR_CH);
+    uint64_t src_ibus = m2m_check_ibus(src, EDMAC_DX_M2M_RD_CH);
+    uint64_t dst_ibus = m2m_check_ibus(dst, EDMAC_DX_M2M_WR_CH);
     if (!src_ibus || !dst_ibus)
     {
-        DryosDebugMsg(0, 15, "[EDMAC_DX] reject %08x -> %08x: %s", src, dst, m2m_last_error);
+        DryosDebugMsg(0, 15, "[EDMAC_DX] reject %d:%08x -> %d:%08x: %s",
+                      IBUS_DRAM_CH(src), IBUS_LO(src), IBUS_DRAM_CH(dst), IBUS_LO(dst), m2m_last_error);
         return 1;
     }
 
@@ -311,7 +311,8 @@ static int m2m_transfer(const void *src, const void *dst,
     if (timeout || !ok)
     {
         m2m_last_error = "timeout";
-        DryosDebugMsg(0, 15, "[EDMAC_DX] timeout %08x -> %08x", src, dst);
+        DryosDebugMsg(0, 15, "[EDMAC_DX] timeout %d:%08x -> %d:%08x",
+                      IBUS_DRAM_CH(src), IBUS_LO(src), IBUS_DRAM_CH(dst), IBUS_LO(dst));
         return 1;
     }
     return 0;
@@ -385,12 +386,35 @@ void* edmac_copy_rectangle_cbr_start(void *dst, void *src,
     struct edmac_info src_info = { .xb = w, .yb = h - 1, .off1b = src_width - w };
     struct edmac_info dst_info = { .xb = w, .yb = h - 1, .off1b = dst_width - w };
 
-    if (m2m_transfer(src_adjusted , dst_adjusted , &src_info, &dst_info, w * h))
+    if (m2m_transfer(cpu_to_ibus(src_adjusted), cpu_to_ibus(dst_adjusted), &src_info, &dst_info, w * h))
         return NULL;
 
     if (cbr_r) cbr_r(cbr_ctx);
     if (cbr_w) cbr_w(cbr_ctx);
     return dst;
+}
+
+/**
+ * Same rectangle copy on IBus addresses (any DRAM channel, e.g. DRAM Ch3
+ * memory from exmem_dram3_alloc). Widths and offsets in bytes.
+ * Blocking. Returns 0 on success.
+ */
+int edmac_copy_rectangle_ibus(uint64_t dst, uint64_t src,
+                              int src_width, int src_x, int src_y,
+                              int dst_width, int dst_x, int dst_y,
+                              int w, int h)
+{
+    if (!src || !dst || w <= 0 || h <= 0 || (w * h) % m2m_mode_unit[m2m_mode])
+    {
+        m2m_last_error = "invalid size";
+        return 1;
+    }
+
+    struct edmac_info src_info = { .xb = w, .yb = h - 1, .off1b = src_width - w };
+    struct edmac_info dst_info = { .xb = w, .yb = h - 1, .off1b = dst_width - w };
+    return m2m_transfer(src + src_x + src_y * src_width,
+                        dst + dst_x + dst_y * dst_width,
+                        &src_info, &dst_info, w * h);
 }
 
 /* nothing to clean up: m2m_transfer() leaves the module idle */
@@ -412,23 +436,40 @@ void* edmac_copy_rectangle(void *dst, void *src, int src_width, int x, int y, in
     return edmac_copy_rectangle_adv(dst, src, src_width, x, y, w, 0, 0, w, h);
 }
 
+/* largest line width <= 32K that splits length into whole lines, 0 if none */
+static uint32_t m2m_line_width(uint32_t length)
+{
+    uint32_t unit = m2m_mode_unit[m2m_mode];
+    if (length % unit)
+        return 0;
+
+    for (uint32_t wd = MIN(length, 0x8000) & ~(unit - 1); wd >= unit; wd -= unit)
+    {
+        if (length % wd == 0)
+            return wd;
+    }
+    return 0;
+}
+
 /* plain copy; falls back to memcpy for sizes EDMAC can't do */
 void* edmac_memcpy(void *dst, void *src, size_t length)
 {
-    /* largest line width <= 64K that divides length into whole lines */
-    uint32_t unit = m2m_mode_unit[m2m_mode];
-    uint32_t width = 0;
-    if (length % unit == 0)
-    {
-        for (uint32_t wd = MIN(length, 0x8000) & ~(unit - 1); wd >= unit; wd -= unit)
-        {
-            if (length % wd == 0) { width = wd; break; }
-        }
-    }
-
+    uint32_t width = m2m_line_width(length);
     if (!width || !edmac_copy_rectangle_adv(dst, src, width, 0, 0, width, 0, 0, width, length / width))
         return memcpy(dst, src, length);
     return dst;
+}
+
+/* plain copy on IBus addresses; no CPU fallback. Returns 0 on success. */
+int edmac_copy_ibus(uint64_t dst, uint64_t src, uint32_t length)
+{
+    uint32_t width = m2m_line_width(length);
+    if (!width)
+    {
+        m2m_last_error = "size not multiple of transfer unit";
+        return 1;
+    }
+    return edmac_copy_rectangle_ibus(dst, src, width, 0, 0, width, 0, 0, width, length / width);
 }
 
 #endif // CONFIG_EDMAC_MEMCPY_DX

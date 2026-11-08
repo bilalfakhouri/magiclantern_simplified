@@ -20,6 +20,13 @@ uint32_t edmac_find_divider(size_t length, size_t transfer_size);
 void* edmac_copy_rectangle(void* dst, void* src, int src_width, int x, int y, int w, int h);
 void* edmac_copy_rectangle_adv(void* dst, void* src, int src_width, int src_x, int src_y, int dst_width, int dst_x, int dst_y, int w, int h);
 
+#ifdef CONFIG_EDMAC_MEMCPY_DX
+/* DIGIC X: copies on 64-bit IBus addresses, any DRAM channel (see ibus.h).
+ * Blocking; return 0 on success. */
+int edmac_copy_ibus(uint64_t dst, uint64_t src, uint32_t length);
+int edmac_copy_rectangle_ibus(uint64_t dst, uint64_t src, int src_width, int src_x, int src_y, int dst_width, int dst_x, int dst_y, int w, int h);
+#endif
+
 /* non-blocking versions */
 void* edmac_memcpy_start(void* dst, void* src, size_t length);
 void* edmac_copy_rectangle_start(void* dst, void* src, int src_width, int x, int y, int w, int h);
