@@ -87,6 +87,83 @@ struct raw_pixblock
     unsigned int g_lo: 2;
 } __attribute__((packed,aligned(2)));
 
+/**
+ * Pixels a..h of a block. Read them through RAW_PB_A..RAW_PB_H(p) and
+ * raw_pixblock_get / raw_pixblock_set, not the struct fields: the bit order
+ * inside the block depends on the camera.
+ *
+ * CONFIG_RAW_LE14 (DIGIC X, e.g. R8): LiveView raw is an LSB-first 14-bit
+ * bitstream - 8 px in 7 little-endian u16 words s[0..6], pixel k at bits
+ * 14k..14k+13. Same size and 14-byte / 8-px alignment as the classic layout
+ * above (MSB-first inside 16-bit words), different bit order. Measured on
+ * R8 1.4.0; no pack-unit setting gives the classic layout. Data written to
+ * card keeps the camera's packing; PC-side tools convert it.
+ */
+#ifdef CONFIG_RAW_LE14
+#define RAW_PB_W(p, i)  ((int)((const unsigned short *)(p))[i])
+#define RAW_PB_A(p) (  RAW_PB_W(p, 0)                              & 0x3FFF)
+#define RAW_PB_B(p) (((RAW_PB_W(p, 0) >> 14) | (RAW_PB_W(p, 1) <<  2)) & 0x3FFF)
+#define RAW_PB_C(p) (((RAW_PB_W(p, 1) >> 12) | (RAW_PB_W(p, 2) <<  4)) & 0x3FFF)
+#define RAW_PB_D(p) (((RAW_PB_W(p, 2) >> 10) | (RAW_PB_W(p, 3) <<  6)) & 0x3FFF)
+#define RAW_PB_E(p) (((RAW_PB_W(p, 3) >>  8) | (RAW_PB_W(p, 4) <<  8)) & 0x3FFF)
+#define RAW_PB_F(p) (((RAW_PB_W(p, 4) >>  6) | (RAW_PB_W(p, 5) << 10)) & 0x3FFF)
+#define RAW_PB_G(p) (((RAW_PB_W(p, 5) >>  4) | (RAW_PB_W(p, 6) << 12)) & 0x3FFF)
+#define RAW_PB_H(p) (  RAW_PB_W(p, 6) >>  2)
+#else
+#define RAW_PB_A(p) ((int)((p)->a))
+#define RAW_PB_B(p) ((int)((p)->b_lo | ((p)->b_hi << 12)))
+#define RAW_PB_C(p) ((int)((p)->c_lo | ((p)->c_hi << 10)))
+#define RAW_PB_D(p) ((int)((p)->d_lo | ((p)->d_hi << 8)))
+#define RAW_PB_E(p) ((int)((p)->e_lo | ((p)->e_hi << 6)))
+#define RAW_PB_F(p) ((int)((p)->f_lo | ((p)->f_hi << 4)))
+#define RAW_PB_G(p) ((int)((p)->g_lo | ((p)->g_hi << 2)))
+#define RAW_PB_H(p) ((int)((p)->h))
+#endif
+
+/* pixel k (0..7) of a block */
+static inline int raw_pixblock_get(const struct raw_pixblock * p, int k)
+{
+    switch (k)
+    {
+        case 0:  return RAW_PB_A(p);
+        case 1:  return RAW_PB_B(p);
+        case 2:  return RAW_PB_C(p);
+        case 3:  return RAW_PB_D(p);
+        case 4:  return RAW_PB_E(p);
+        case 5:  return RAW_PB_F(p);
+        case 6:  return RAW_PB_G(p);
+        default: return RAW_PB_H(p);
+    }
+}
+
+static inline void raw_pixblock_set(struct raw_pixblock * p, int k, int value)
+{
+#ifdef CONFIG_RAW_LE14
+    /* 14 bits at bit 14k of the LSB-first bitstream */
+    unsigned short * s = (unsigned short *)p;
+    int bit = 14 * k, w = bit / 16, off = bit % 16;
+    unsigned int v = (unsigned int)(value & 0x3FFF) << off;
+    unsigned int m = 0x3FFFu << off;
+    s[w] = (s[w] & ~m) | v;
+    if (off > 2)                            /* spills into the next word */
+    {
+        s[w + 1] = (s[w + 1] & ~(m >> 16)) | (v >> 16);
+    }
+#else
+    switch (k)
+    {
+        case 0:  p->a = value; break;
+        case 1:  p->b_lo = value; p->b_hi = value >> 12; break;
+        case 2:  p->c_lo = value; p->c_hi = value >> 10; break;
+        case 3:  p->d_lo = value; p->d_hi = value >> 8; break;
+        case 4:  p->e_lo = value; p->e_hi = value >> 6; break;
+        case 5:  p->f_lo = value; p->f_hi = value >> 4; break;
+        case 6:  p->g_lo = value; p->g_hi = value >> 2; break;
+        default: p->h = value; break;
+    }
+#endif
+}
+
 /* call this before performing any raw image analysis */
 /* in LiveView, this will retry as needed */
 /* returns 1=success, 0=failed */

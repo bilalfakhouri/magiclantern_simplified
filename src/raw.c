@@ -1641,7 +1641,7 @@ int FAST raw_red_pixel(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return buf[i].a;
+    return RAW_PB_A(&buf[i]);
 }
 
 int FAST raw_green_pixel(int x, int y)
@@ -1649,7 +1649,7 @@ int FAST raw_green_pixel(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return buf[i].h;
+    return RAW_PB_H(&buf[i]);
 }
 
 int FAST raw_blue_pixel(int x, int y)
@@ -1657,7 +1657,7 @@ int FAST raw_blue_pixel(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2 - 1;
     int i = ((y * raw_info.width + x) / 8);
-    return buf[i].h;
+    return RAW_PB_H(&buf[i]);
 }
 
 int FAST raw_red_pixel_dark(int x, int y)
@@ -1665,7 +1665,7 @@ int FAST raw_red_pixel_dark(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return MIN(buf[i].a, buf[i - raw_info.width*2/8].a);
+    return MIN(RAW_PB_A(&buf[i]), RAW_PB_A(&buf[i - raw_info.width*2/8]));
 }
 
 int FAST raw_green_pixel_dark(int x, int y)
@@ -1673,7 +1673,7 @@ int FAST raw_green_pixel_dark(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return MIN(buf[i].h, buf[i - raw_info.width*2/8].h);
+    return MIN(RAW_PB_H(&buf[i]), RAW_PB_H(&buf[i - raw_info.width*2/8]));
 }
 
 int FAST raw_blue_pixel_dark(int x, int y)
@@ -1681,7 +1681,7 @@ int FAST raw_blue_pixel_dark(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2 - 1;
     int i = ((y * raw_info.width + x) / 8);
-    return MIN(buf[i].h, buf[i - raw_info.width*2/8].h);
+    return MIN(RAW_PB_H(&buf[i]), RAW_PB_H(&buf[i - raw_info.width*2/8]));
 }
 
 int FAST raw_red_pixel_bright(int x, int y)
@@ -1689,7 +1689,7 @@ int FAST raw_red_pixel_bright(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return MAX(buf[i].a, buf[i - raw_info.width*2/8].a);
+    return MAX(RAW_PB_A(&buf[i]), RAW_PB_A(&buf[i - raw_info.width*2/8]));
 }
 
 int FAST raw_green_pixel_bright(int x, int y)
@@ -1697,7 +1697,7 @@ int FAST raw_green_pixel_bright(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2;
     int i = ((y * raw_info.width + x) / 8);
-    return MAX(buf[i].h, buf[i - raw_info.width*2/8].h);
+    return MAX(RAW_PB_H(&buf[i]), RAW_PB_H(&buf[i - raw_info.width*2/8]));
 }
 
 int FAST raw_blue_pixel_bright(int x, int y)
@@ -1705,53 +1705,24 @@ int FAST raw_blue_pixel_bright(int x, int y)
     struct raw_pixblock * buf = (void*)raw_info.buffer;
     y = (y/2) * 2 - 1;
     int i = ((y * raw_info.width + x) / 8);
-    return MAX(buf[i].h, buf[i - raw_info.width*2/8].h);
+    return MAX(RAW_PB_H(&buf[i]), RAW_PB_H(&buf[i - raw_info.width*2/8]));
 }
 
 
 int FAST raw_get_pixel(int x, int y) {
     struct raw_pixblock * p = (void*)raw_info.buffer + y * raw_info.pitch + (x/8)*14;
-    switch (x%8) {
-        case 0: return p->a;
-        case 1: return p->b_lo | (p->b_hi << 12);
-        case 2: return p->c_lo | (p->c_hi << 10);
-        case 3: return p->d_lo | (p->d_hi << 8);
-        case 4: return p->e_lo | (p->e_hi << 6);
-        case 5: return p->f_lo | (p->f_hi << 4);
-        case 6: return p->g_lo | (p->g_hi << 2);
-        case 7: return p->h;
-    }
-    return p->a;
+    return raw_pixblock_get(p, x % 8);
 }
 
 int FAST raw_get_pixel_ex(void* raw_buffer, int x, int y) {
     struct raw_pixblock * p = (void*)raw_buffer + y * raw_info.pitch + (x/8)*14;
-    switch (x%8) {
-        case 0: return p->a;
-        case 1: return p->b_lo | (p->b_hi << 12);
-        case 2: return p->c_lo | (p->c_hi << 10);
-        case 3: return p->d_lo | (p->d_hi << 8);
-        case 4: return p->e_lo | (p->e_hi << 6);
-        case 5: return p->f_lo | (p->f_hi << 4);
-        case 6: return p->g_lo | (p->g_hi << 2);
-        case 7: return p->h;
-    }
-    return p->a;
+    return raw_pixblock_get(p, x % 8);
 }
 
 void FAST raw_set_pixel(int x, int y, int value)
 {
     struct raw_pixblock * p = (void*)raw_info.buffer + y * raw_info.pitch + (x/8)*14;
-    switch (x%8) {
-        case 0: p->a = value; break;
-        case 1: p->b_lo = value; p->b_hi = value >> 12; break;
-        case 2: p->c_lo = value; p->c_hi = value >> 10; break;
-        case 3: p->d_lo = value; p->d_hi = value >> 8; break;
-        case 4: p->e_lo = value; p->e_hi = value >> 6; break;
-        case 5: p->f_lo = value; p->f_hi = value >> 4; break;
-        case 6: p->g_lo = value; p->g_hi = value >> 2; break;
-        case 7: p->h = value; break;
-    }
+    raw_pixblock_set(p, x % 8, value);
 }
 
 int FAST raw_get_gray_pixel(int x, int y, int gray_projection)
@@ -2093,8 +2064,8 @@ static int autodetect_white_level(int initial_guess)
         for (struct raw_pixblock * p = (void*)row_crop_start; (void*)p < (void*)row_crop_end; p += 3)
         {
             /* a is red or green, b is green or blue */
-            int a = p->a;
-            int b = p->h;
+            int a = RAW_PB_A(p);
+            int b = RAW_PB_H(p);
             hist[a >> bin]++;
             hist[b >> bin]++;
         }
@@ -2249,25 +2220,24 @@ int raw_lv_settings_still_valid()
 #endif // CONFIG_RAW_LIVEVIEW
 
 /* For accessing the pixels in a struct raw_pixblock, faster than via raw_get_pixel */
-/* todo: move in raw.h? */
-#define PA ((int)(p->a))
-#define PB ((int)(p->b_lo | (p->b_hi << 12)))
-#define PC ((int)(p->c_lo | (p->c_hi << 10)))
-#define PD ((int)(p->d_lo | (p->d_hi << 8)))
-#define PE ((int)(p->e_lo | (p->e_hi << 6)))
-#define PF ((int)(p->f_lo | (p->f_hi << 4)))
-#define PG ((int)(p->g_lo | (p->g_hi << 2)))
-#define PH ((int)(p->h))
+#define PA RAW_PB_A(p)
+#define PB RAW_PB_B(p)
+#define PC RAW_PB_C(p)
+#define PD RAW_PB_D(p)
+#define PE RAW_PB_E(p)
+#define PF RAW_PB_F(p)
+#define PG RAW_PB_G(p)
+#define PH RAW_PB_H(p)
 
 /* a second set of pixels */
-#define QA ((int)(q->a))
-#define QB ((int)(q->b_lo | (q->b_hi << 12)))
-#define QC ((int)(q->c_lo | (q->c_hi << 10)))
-#define QD ((int)(q->d_lo | (q->d_hi << 8)))
-#define QE ((int)(q->e_lo | (q->e_hi << 6)))
-#define QF ((int)(q->f_lo | (q->f_hi << 4)))
-#define QG ((int)(q->g_lo | (q->g_hi << 2)))
-#define QH ((int)(q->h))
+#define QA RAW_PB_A(q)
+#define QB RAW_PB_B(q)
+#define QC RAW_PB_C(q)
+#define QD RAW_PB_D(q)
+#define QE RAW_PB_E(q)
+#define QF RAW_PB_F(q)
+#define QG RAW_PB_G(q)
+#define QH RAW_PB_H(q)
 
 static void FAST raw_preview_color_work(void* raw_buffer, void* lv_buffer, int y1, int y2)
 {
@@ -2461,7 +2431,7 @@ static void FAST raw_preview_fast_work(void* raw_buffer, void* lv_buffer, int y1
         {
             int xr = lv2rx[x];
             struct raw_pixblock * p = row + (xr/8);
-            int c = p->a;
+            int c = PA;
             uint64_t Y = gamma[COERCE(c - black, 0, white-black) >> div];
             Y = (Y << 8) | (Y << 24) | (Y << 40) | (Y << 56);
             int idx = LV(x,y)/8;

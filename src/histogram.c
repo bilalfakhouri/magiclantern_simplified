@@ -462,22 +462,15 @@ int FAST raw_hist_get_percentile_levels(int* percentiles_x10, int* output_raw_va
                  *     gbgbgbgb gbgbgbgb
                  */
 
-                //~ int pa = ((int)(p->a));
-                int pb = ((int)(p->b_lo | (p->b_hi << 12)));
-                //~ int pc = ((int)(p->c_lo | (p->c_hi << 10)));
-                int pd = ((int)(p->d_lo | (p->d_hi << 8)));
-                //~ int pe = ((int)(p->e_lo | (p->e_hi << 6)));
-                int pf = ((int)(p->f_lo | (p->f_hi << 4)));
-                //~ int pg = ((int)(p->g_lo | (p->g_hi << 2)));
-                int ph = ((int)(p->h));
-                int qa = ((int)(q->a));
-                //~ int qb = ((int)(q->b_lo | (q->b_hi << 12)));
-                int qc = ((int)(q->c_lo | (q->c_hi << 10)));
-                //~ int qd = ((int)(q->d_lo | (q->d_hi << 8)));
-                int qe = ((int)(q->e_lo | (q->e_hi << 6)));
-                //~ int qf = ((int)(q->f_lo | (q->f_hi << 4)));
-                int qg = ((int)(q->g_lo | (q->g_hi << 2)));
-                //~ int qh = ((int)(q->h));
+                /* green pixels only (see raw.h for the packing) */
+                int pb = RAW_PB_B(p);
+                int pd = RAW_PB_D(p);
+                int pf = RAW_PB_F(p);
+                int ph = RAW_PB_H(p);
+                int qa = RAW_PB_A(q);
+                int qc = RAW_PB_C(q);
+                int qe = RAW_PB_E(q);
+                int qg = RAW_PB_G(q);
 
                 hist[pb]++;
                 hist[pd]++;

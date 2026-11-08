@@ -48,3 +48,7 @@
 
 /** exmem_dram3_alloc(): DRAM Ch3 memory (IBus only) from free RscMgr WorkMem areas */
 #define CONFIG_DRAM3_WORKMEM
+
+/** LiveView raw is packed LSB-first (8 px in 7 u16 words), not like the classic
+ *  struct raw_pixblock: see RAW_PB_A..H in src/raw.h */
+#define CONFIG_RAW_LE14
