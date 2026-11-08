@@ -452,6 +452,46 @@ static void dram3_add_range(uint64_t ibus, uint32_t size)
     dram3.total += size;
 }
 
+/*
+ * CPU access: one dynamic window, taken while DRAM Ch3 is held. Only a
+ * window the boot code left parked (DRAM Ch1, bus >= 0xC0000000, no RAM
+ * there) is taken, so Canon's own IBus peek/poke keeps its window.
+ */
+static uint32_t dram3_win = 0;                  /* 12..15, 0 = none */
+static uint32_t dram3_win_saved = 0;
+
+static void dram3_take_window(void)
+{
+#ifdef MEMIF_DYNWIN_REGS
+    if (memiarb_allowed(MEMIF_DYNWIN_PID, 3) != 1)
+    {
+        return;
+    }
+    for (uint32_t win = 15; win >= 12; win--)
+    {
+        uint32_t target = *dynwin_reg(win, 0);
+        if ((target & 7) == 1 && (target & 0xFFF00000) >= 0xC0000000)
+        {
+            dram3_win = win;
+            dram3_win_saved = target;
+            return;
+        }
+    }
+#endif
+}
+
+static void dram3_give_window(void)
+{
+#ifdef MEMIF_DYNWIN_REGS
+    if (dram3_win)
+    {
+        *dynwin_reg(dram3_win, 0) = dram3_win_saved;
+        asm volatile ("dsb sy" ::: "memory");
+        dram3_win = 0;
+    }
+#endif
+}
+
 const struct dram3_mem *exmem_dram3_alloc(void)
 {
     if (!dram3_sem)
@@ -512,11 +552,15 @@ const struct dram3_mem *exmem_dram3_alloc(void)
         return NULL;
     }
 
+    dram3_take_window();
+    dram3.cpu_access = (dram3_win != 0);
     return &dram3;
 }
 
 void exmem_dram3_free(void)
 {
+    dram3_give_window();
+
     for (int i = 0; i < DRAM3_AREAS; i++)
     {
         if (dram3_state[i] == AREA_HELD)
@@ -533,7 +577,63 @@ void exmem_dram3_free(void)
     }
     memset(&dram3, 0, sizeof(dram3));
 }
+
+/*
+ * Access for modules
+ * ==================
+ * Modules are built for all cameras and can't use ibus.h; they declare
+ * these with WEAK_FUNC(ret_0), see exmem.h.
+ */
+int exmem_dram3_available(void)
+{
+    return 1;
+}
+
+uint32_t exmem_dram3_read32(uint64_t ibus)
+{
+    uint32_t value = 0;
+#ifdef MEMIF_DYNWIN_REGS
+    if (dram3_win)
+    {
+        uint32_t old = cli();
+        uint32_t cpu = dynwin_map(dram3_win, ibus);
+        if (cpu)
+        {
+            value = *(volatile uint32_t *)cpu;
+        }
+        sei(old);
+    }
+#endif
+    return value;
+}
+
+void exmem_dram3_write32(uint64_t ibus, uint32_t value)
+{
+#ifdef MEMIF_DYNWIN_REGS
+    if (dram3_win)
+    {
+        uint32_t old = cli();
+        uint32_t cpu = dynwin_map(dram3_win, ibus);
+        if (cpu)
+        {
+            *(volatile uint32_t *)cpu = value;
+            asm volatile ("dsb sy" ::: "memory");
+        }
+        sei(old);
+    }
+#endif
+}
 #endif /* CONFIG_DRAM3_WORKMEM */
+
+uint64_t exmem_cpu_to_ibus(const void *cpu)
+{
+#ifdef CONFIG_RSCMGR_IBUS   /* memory windows verified (R8) */
+    return cpu_to_ibus(cpu);
+#else
+    (void)cpu;
+    return 0;
+#endif
+}
 
 /**
  * Resource type ID, the 4th argument of AllocateMemoryResource() and

@@ -105,10 +105,34 @@ struct dram3_mem
     struct ibus_range range[DRAM3_MAX_RANGES];  /* largest first */
     int      busy_count;                        /* areas Canon held (not taken) */
     uint32_t busy_id[DRAM3_MAX_BUSY];           /* their WorkMem area ids */
+    int      cpu_access;                        /* 1: exmem_dram3_read32 / write32 work */
 };
 
 const struct dram3_mem *exmem_dram3_alloc(void);
 void exmem_dram3_free(void);
+
+/**
+ * CPU access to single words of DRAM Ch3 (any IBus address, 4-byte aligned)
+ * while exmem_dram3_alloc() memory is held, through a dynamic window that
+ * exmem keeps for itself. About 1 us per word: for headers and markers,
+ * never for image data. Safe from any task (interrupts off for the access).
+ * Only if dram3_mem.cpu_access; otherwise read32 returns 0, write32 does nothing.
+ */
+uint32_t exmem_dram3_read32(uint64_t ibus);
+void exmem_dram3_write32(uint64_t ibus, uint32_t value);
+
+/**
+ * 1 if this camera can use DRAM Ch3 memory (CONFIG_DRAM3_WORKMEM).
+ * For modules: declare it with WEAK_FUNC(ret_0), so it returns 0 on
+ * cameras where the core doesn't have it.
+ */
+int exmem_dram3_available(void);
+
+/**
+ * IBus address of a CPU buffer, for modules (which can't use ibus.h).
+ * 0 if not RAM, or the camera has no verified window table (CONFIG_RSCMGR_IBUS).
+ */
+uint64_t exmem_cpu_to_ibus(const void *cpu);
 
 /* dump the contents of a memsuite */
 unsigned int exmem_save_buffer(struct memSuite * hSuite, char *file);
