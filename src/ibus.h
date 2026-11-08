@@ -64,8 +64,8 @@
  *
  * Allocating memory "on IBus": every RscMgr pool is ordinary RAM on some
  * DRAM channel; use GetIBusAddressOfMemoryChunk() + ibus_to_cpu() (see
- * exmem.c, CONFIG_RSCMGR_IBUS). DRAM Ch3 is only reachable through fixed
- * areas handed out by RscMgr WorkMem (not used by ML yet).
+ * exmem.c, CONFIG_RSCMGR_IBUS). DRAM Ch3 memory comes from RscMgr WorkMem
+ * areas: exmem_dram3_alloc() (CONFIG_DRAM3_WORKMEM).
  */
 
 #ifndef MEMIF_WINDOW_REGS

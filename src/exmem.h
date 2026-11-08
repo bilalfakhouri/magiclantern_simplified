@@ -72,6 +72,44 @@ struct ibus_buf
 int  exmem_ibus_alloc(struct ibus_buf *buf, uint32_t size, uint32_t align, int pid, int flags);
 void exmem_ibus_free(struct ibus_buf *buf);
 
+/**
+ * DRAM Ch3 memory (DIGIC X, CONFIG_DRAM3_WORKMEM).
+ *
+ * The CPU has no address for DRAM Ch3; only bus masters reach it (EDMAC,
+ * the card DMA). exmem_dram3_alloc() takes every RscMgr WorkMem area from
+ * DRAM3_WORKMEM_AREAS (consts.h) that Canon is not using right now and
+ * returns their parts as IBus ranges, largest first. Areas Canon holds are
+ * skipped, never waited for.
+ *
+ * Use it with edmac_copy_ibus() / edmac_copy_rectangle_ibus() and
+ * FIO_WriteFileIBus(). Check memiarb_allowed() for the EDMAC channel pids.
+ * Give it back (exmem_dram3_free) before anything that changes Canon's
+ * memory layout: mode switch, still capture, playback, entering menus.
+ *
+ * Only one user at a time. Returns NULL if nothing could be taken.
+ */
+struct ibus_range
+{
+    uint64_t ibus;
+    uint32_t size;
+};
+
+#define DRAM3_MAX_RANGES 32
+
+#define DRAM3_MAX_BUSY   16
+
+struct dram3_mem
+{
+    int      count;
+    uint32_t total;                             /* bytes */
+    struct ibus_range range[DRAM3_MAX_RANGES];  /* largest first */
+    int      busy_count;                        /* areas Canon held (not taken) */
+    uint32_t busy_id[DRAM3_MAX_BUSY];           /* their WorkMem area ids */
+};
+
+const struct dram3_mem *exmem_dram3_alloc(void);
+void exmem_dram3_free(void);
+
 /* dump the contents of a memsuite */
 unsigned int exmem_save_buffer(struct memSuite * hSuite, char *file);
 

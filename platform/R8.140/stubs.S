@@ -189,6 +189,8 @@ THUMB_FN(0xe0848cd0,  CreateMemoryChunk)                    // In ConcatMemorySu
 THUMB_FN(0xe0849270,  AddMemoryChunk)                       // In ConcatMemorySuite(), just after calls to CreateMemoryChunk()
 THUMB_FN(0xe08497a8,  CreateMemorySuite)                    // One of just a few xrefs of CreateMemoryChunk(); String "PackMem.c", calls malloc(0x18)
 THUMB_FN(0xe08494cc,  DeleteMemorySuite)                    // DebugMsg "DeleteMemorySuite 0x%x"
+THUMB_FN(0xe084b386,  WorkMem_Alloc)                        // (area id, cbr(ctx, handle), ctx), async; RscMgr fixed areas (table 0xe0f31c98)
+THUMB_FN(0xe084b3e4,  WorkMem_Free)                         // (handle, cbr(ctx), ctx), async
 // kitor: disabled using CONFIG_MEMORY_SRM_NOT_WORKING
 // DIGIC X does not use RscMgr anymore, those are dummy functions that just assert!
 //THUMB_FN(0xe081baa0,  SRM_AllocateMemoryResourceFor1stJob) // R5

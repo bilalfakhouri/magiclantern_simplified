@@ -314,6 +314,227 @@ void exmem_ibus_free(struct ibus_buf *buf)
     }
 }
 
+#ifdef CONFIG_DRAM3_WORKMEM
+#ifndef CONFIG_RSCMGR_IBUS
+#error "CONFIG_DRAM3_WORKMEM needs CONFIG_RSCMGR_IBUS (ibus.h, memory windows)"
+#endif
+/*
+ * DRAM Ch3 from RscMgr WorkMem
+ * ============================
+ *
+ * WorkMem areas are fixed address ranges listed in the ROM area table
+ * (R8 0xe0f31c98). WorkMem_Alloc(id) answers through a callback, at once
+ * when the area is free; when Canon holds it the request is queued until
+ * Canon frees it. So: ask for every area, wait a short time, and keep what
+ * arrived. A request still queued after that is marked "late": its
+ * callback gives the area back as soon as it gets it.
+ */
+extern void WorkMem_Alloc(uint32_t id, void (*cbr)(void *ctx, void *handle), void *ctx);
+extern void WorkMem_Free(void *handle, void (*cbr)(void *ctx), void *ctx);
+
+struct workmem_part                 /* 24 bytes */
+{
+    uint32_t cpu;                   /* 0 on DRAM Ch3 */
+    uint32_t unk1;
+    uint64_t ibus;
+    uint32_t size;
+    uint32_t unk2;
+};
+
+struct workmem_handle
+{
+    uint32_t id;
+    uint32_t count;
+    struct workmem_part part[5];
+};
+
+enum { AREA_IDLE, AREA_REQUESTED, AREA_HELD, AREA_LATE, AREA_FREEING };
+
+static const uint32_t dram3_area_id[] = DRAM3_WORKMEM_AREAS;
+#define DRAM3_AREAS COUNT(dram3_area_id)
+
+static struct workmem_handle *dram3_handle[DRAM3_AREAS];
+static volatile int dram3_state[DRAM3_AREAS];
+static struct semaphore *dram3_sem = NULL;     /* wake-up only: gives may merge */
+static struct dram3_mem dram3;
+
+#define DRAM3_WAIT_MS 200                       /* free areas answer in < 10 ms */
+#define DRAM3_FREE_MS 2000
+
+/*
+ * Wait until no area is in `state`, at most timeout_ms. Returns how many
+ * still are. The callbacks give dram3_sem only to wake us up: gives can
+ * merge, so never count them - look at the states instead.
+ */
+static int dram3_wait_while(int state, int timeout_ms)
+{
+    int deadline = get_ms_clock() + timeout_ms;
+    while (1)
+    {
+        int pending = 0;
+        for (int i = 0; i < DRAM3_AREAS; i++)
+        {
+            pending += (dram3_state[i] == state);
+        }
+
+        int left = deadline - get_ms_clock();
+        if (!pending || left <= 0)
+        {
+            return pending;
+        }
+        take_semaphore(dram3_sem, MIN(left, 10));
+    }
+}
+
+static void dram3_free_cbr(void *ctx)
+{
+    int i = (int)ctx;
+    dram3_handle[i] = NULL;
+    dram3_state[i] = AREA_IDLE;
+    give_semaphore(dram3_sem);
+}
+
+static void dram3_alloc_cbr(void *ctx, void *handle)
+{
+    int i = (int)ctx;
+    dram3_handle[i] = handle;
+
+    uint32_t old = cli();
+    int late = (dram3_state[i] == AREA_LATE);
+    if (!late)
+    {
+        dram3_state[i] = AREA_HELD;
+    }
+    sei(old);
+
+    if (late)
+    {
+        WorkMem_Free(handle, dram3_free_cbr, ctx);   /* we stopped waiting */
+    }
+    else
+    {
+        give_semaphore(dram3_sem);
+    }
+}
+
+static int ranges_overlap(const struct ibus_range *a, uint64_t ibus, uint32_t size)
+{
+    return ibus < a->ibus + a->size && a->ibus < ibus + size;
+}
+
+/* add one area part to dram3.range[], kept sorted by size, largest first */
+static void dram3_add_range(uint64_t ibus, uint32_t size)
+{
+    if (IBUS_DRAM_CH(ibus) != 3 || size == 0)
+    {
+        return;
+    }
+    for (int k = 0; k < dram3.count; k++)
+    {
+        if (ranges_overlap(&dram3.range[k], ibus, size))
+        {
+            return;                             /* two areas share memory: use it once */
+        }
+    }
+    if (dram3.count == DRAM3_MAX_RANGES)
+    {
+        return;
+    }
+
+    int k = dram3.count++;
+    while (k > 0 && dram3.range[k - 1].size < size)
+    {
+        dram3.range[k] = dram3.range[k - 1];
+        k--;
+    }
+    dram3.range[k].ibus = ibus;
+    dram3.range[k].size = size;
+    dram3.total += size;
+}
+
+const struct dram3_mem *exmem_dram3_alloc(void)
+{
+    if (!dram3_sem)
+    {
+        dram3_sem = create_named_semaphore("dram3", 0);
+    }
+    if (dram3.count)
+    {
+        return NULL;                            /* already taken */
+    }
+
+    for (int i = 0; i < DRAM3_AREAS; i++)
+    {
+        if (dram3_state[i] == AREA_IDLE)
+        {
+            dram3_state[i] = AREA_REQUESTED;
+            WorkMem_Alloc(dram3_area_id[i], dram3_alloc_cbr, (void *)i);
+        }
+    }
+
+    /* free areas answer within a few ms; busy ones never do */
+    dram3_wait_while(AREA_REQUESTED, DRAM3_WAIT_MS);
+
+    uint32_t old = cli();
+    for (int i = 0; i < DRAM3_AREAS; i++)
+    {
+        if (dram3_state[i] == AREA_REQUESTED)
+        {
+            dram3_state[i] = AREA_LATE;
+        }
+    }
+    sei(old);
+
+    memset(&dram3, 0, sizeof(dram3));
+    for (int i = 0; i < DRAM3_AREAS; i++)
+    {
+        if (dram3_state[i] == AREA_LATE && dram3.busy_count < DRAM3_MAX_BUSY)
+        {
+            dram3.busy_id[dram3.busy_count++] = dram3_area_id[i];
+            printf("[DRAM3] area %x busy\n", (unsigned int)dram3_area_id[i]);
+        }
+
+        struct workmem_handle *h = dram3_handle[i];
+        if (dram3_state[i] != AREA_HELD || !h)
+        {
+            continue;
+        }
+        for (int p = 0; p < (int)h->count && p < COUNT(h->part); p++)
+        {
+            dram3_add_range(h->part[p].ibus, h->part[p].size);
+        }
+    }
+
+    printf("[DRAM3] %d ranges, %d MB\n", dram3.count, (int)(dram3.total >> 20));
+    if (!dram3.count)
+    {
+        exmem_dram3_free();
+        return NULL;
+    }
+
+    return &dram3;
+}
+
+void exmem_dram3_free(void)
+{
+    for (int i = 0; i < DRAM3_AREAS; i++)
+    {
+        if (dram3_state[i] == AREA_HELD)
+        {
+            dram3_state[i] = AREA_FREEING;
+            WorkMem_Free(dram3_handle[i], dram3_free_cbr, (void *)i);
+        }
+    }
+
+    int left = dram3_wait_while(AREA_FREEING, DRAM3_FREE_MS);
+    if (left)
+    {
+        printf("[DRAM3] %d areas not freed after %d ms\n", left, DRAM3_FREE_MS);
+    }
+    memset(&dram3, 0, sizeof(dram3));
+}
+#endif /* CONFIG_DRAM3_WORKMEM */
+
 /**
  * Resource type ID, the 4th argument of AllocateMemoryResource() and
  * AllocateContinuousMemoryResource(): which RscMgr pool shoot_malloc uses.

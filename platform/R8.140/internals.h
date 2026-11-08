@@ -45,3 +45,6 @@
 /** EDMAC mem2mem via Engine::MemoryToMemoryEsub1, see src/edmac-memcpy-dx.c.
  *  (CONFIG_EDMAC_MEMCPY would build the DIGIC 4/5 src/edmac-memcpy.c instead) */
 #define CONFIG_EDMAC_MEMCPY_DX
+
+/** exmem_dram3_alloc(): DRAM Ch3 memory (IBus only) from free RscMgr WorkMem areas */
+#define CONFIG_DRAM3_WORKMEM

@@ -181,6 +181,14 @@
 #define RSCMGR_TYPE_ID            0             // generic pool: shoot_malloc / fio_malloc
 #define RSCMGR_POOLS              { { 0x52, 0 }, { 0x0b, 0 }, { 0x58, 1 } }   // shoot_malloc_suite(0), largest first
 
+/*
+ * RscMgr WorkMem areas on DRAM Ch3 for exmem_dram3_alloc() (CONFIG_DRAM3_WORKMEM).
+ * Measured on R8 1.4.0, movie mode, RAW LV on: all 13 free,
+ * 1549 MB in 19 ranges (largest 4 x 220 MB).
+ */
+#define DRAM3_WORKMEM_AREAS       { 0x4128, 0x4129, 0x412a, 0x412b, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, \
+                                    0x37, 0x3a, 0x38, 0x1c }
+
 /* WRONG! */
 #define HALFSHUTTER_PRESSED         0
 
