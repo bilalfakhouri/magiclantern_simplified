@@ -61,6 +61,8 @@ THUMB_FN(0xe08511b6, _FIO_RemoveFile)                       // Storage::Storage.
 THUMB_FN(0xe0851268, _FIO_ReadFile)                         // Storage::Storage.c Read
 THUMB_FN(0xe0851656,  FIO_SeekSkipFile)                     // Storage::Storage.c Search
 THUMB_FN(0xe085171c, _FIO_WriteFile)                        // Storage::Storage.c Write
+THUMB_FN(0xe08518c0,  FIO_WriteFileIBus)                    // Storage::Storage.c "WriteIBus" (fd, u64 ibus, size); rejects CPU addresses
+THUMB_FN(0xe0851548,  FIO_ReadFileIBus)                     // Storage::Storage.c "ReadIBus"  (fd, u64 ibus, size)
 THUMB_FN(0xe0852276,  FIO_CloseFile)                        // Storage::Storage.c Close
 THUMB_FN(0xe0852528, _FIO_GetFileSize64)                    // Storage::Storage.c AcqSize
 THUMB_FN(0xe085302e, _FIO_RenameFile)                       // Storage::Storage.c Rename

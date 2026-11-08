@@ -148,6 +148,15 @@ extern int FIO_ReadFile( FILE* stream, void* ptr, size_t count );
 extern int FIO_WriteFile( FILE* stream, const void* ptr, size_t count );
 extern void FIO_CloseFile( FILE* stream ); // does not invalidate stream after closing
 
+#ifdef CONFIG_DIGIC_X
+/* read / write a file straight from / to RAM given by a 64-bit IBus address
+ * (any DRAM channel, including DRAM Ch3 which has no CPU address; see ibus.h).
+ * The card DMA reads RAM directly: no cache involved. Canon refuses plain
+ * CPU addresses (DRAM channel 0). Returns bytes written / read, < 0 on error. */
+extern int FIO_WriteFileIBus( FILE* stream, uint64_t ibus, size_t count );
+extern int FIO_ReadFileIBus( FILE* stream, uint64_t ibus, size_t count );
+#endif
+
 /* Returns 0 for success */
 extern int FIO_GetFileSize( const char * filename, uint32_t * size );
 
