@@ -54,10 +54,8 @@
  * 0xBEFFFFFF uncached). CACHEABLE() / UNCACHEABLE() (mem_defs.h) switch
  * between windows 0..3 and 4..7 and correctly do nothing on 0x8..0xB.
  *
- * No fixed window maps DRAM Ch3: the CPU cannot reach it, only hardware.
- * The 4 dynamic windows 12..15 (CPU 0xC2000000..0xC9FFFFFF, device memory)
- * are pointed at DRAM Ch3 only by the bootloader RAM test; at runtime they
- * map DRAM Ch1. ML leaves them alone.
+ * No fixed window maps DRAM Ch3. The only CPU path to it is one of the 4
+ * dynamic windows 12..15 (see dynwin_map() below).
  *
  * Canon's equivalents, which assert on bad input (ML's versions return 0):
  *     MemifWindow_GetIBusAddress(void *cpu)  0xe092f20c, asserts if cpu >= 0xC0000000
@@ -158,6 +156,66 @@ static inline int memiarb_allowed(int pid, uint32_t dram_ch)
     return -1;
 #endif
 }
+
+/**
+ * Dynamic windows (MemifDynamicWindow)
+ * ====================================
+ *
+ * Windows 12..15 each show about 31 MB of any DRAM channel at a fixed CPU
+ * range. Two registers per window, from MEMIF_DYNWIN_REGS + 8 * (win - 12):
+ *
+ *     +0  target : bus address (1 MB aligned) | DRAM channel
+ *     +4  range  : CPU base (bits 31..16) | CPU end >> 16 (bits 15..0)
+ *
+ * R8 CPU ranges: 0xC2000000, 0xC4000000, 0xC6000000, 0xC8000000, each up to
+ * xxF0FFFF. The MMU maps them as device memory: uncached, aligned 8/16/32-bit
+ * accesses only (no memcpy / LDM tricks), much slower than RAM. Good for
+ * peeking and writing a few words (e.g. a frame header), not for bulk data:
+ * use EDMAC (edmac_copy_ibus) or the card DMA (FIO_WriteFileIBus) for that.
+ *
+ * Canon: MemifDynamicWindow set target 0xe05f7dac (win, -, u64 ibus) does
+ * the same write after a MemiArbiter check for pid 0x15 (asserts if not
+ * allowed). Canon's IBus peek/poke (0xe051591a acquire, 0xe0515990 Read32,
+ * 0xe05159ae Write32, 0xe0515970 release) keeps one window for itself, state
+ * in RAM at 0x6218 (24 bytes per window). Use a window Canon does not.
+ * Check memiarb_allowed(MEMIF_DYNWIN_PID, 3) before pointing one at DRAM Ch3.
+ */
+#ifdef MEMIF_DYNWIN_REGS
+#define MEMIF_DYNWIN_PID    0x15
+
+static inline volatile uint32_t *dynwin_reg(uint32_t win, uint32_t index)
+{
+    return (volatile uint32_t *)(MEMIF_DYNWIN_REGS + 8 * (win - 12) + 4 * index);
+}
+
+static inline uint32_t dynwin_cpu_base(uint32_t win)
+{
+    return *dynwin_reg(win, 1) & 0xFFFF0000;
+}
+
+static inline uint32_t dynwin_size(uint32_t win)
+{
+    uint32_t range = *dynwin_reg(win, 1);
+    return ((range & 0xFFFF) << 16) + 0x10000 - (range & 0xFFFF0000);
+}
+
+/**
+ * Point window `win` (12..15) at `ibus` and return the CPU address of ibus.
+ * The window shows dynwin_size(win) bytes from ibus rounded down to 1 MB.
+ * Returns 0 on bad input.
+ */
+static inline uint32_t dynwin_map(uint32_t win, uint64_t ibus)
+{
+    uint32_t dram_ch = IBUS_DRAM_CH(ibus);
+    if (win < 12 || win > 15 || dram_ch < 1 || dram_ch > 3)
+        return 0;
+
+    uint32_t bus = IBUS_LO(ibus) & ~0xFFFFFu;
+    *dynwin_reg(win, 0) = bus | dram_ch;
+    asm volatile ("dsb sy" ::: "memory");
+    return dynwin_cpu_base(win) + (IBUS_LO(ibus) & 0xFFFFF);
+}
+#endif // MEMIF_DYNWIN_REGS
 
 #endif // CONFIG_DIGIC_X
 #endif // _ibus_h_
