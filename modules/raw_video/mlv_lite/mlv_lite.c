@@ -1407,6 +1407,54 @@ void add_reserved_slots(void * ptr, int n)
     }
 }
 
+/* fill one contiguous block of memory with frame slots */
+static REQUIRES(settings_sem)
+void add_slots(intptr_t ptr, int size, int max_frame_size)
+{
+    /* align pointer at 64 bytes */
+    intptr_t ptr_raw = ptr;
+    ptr   = (ptr + 63) & ~63;
+    size -= (ptr - ptr_raw);
+
+    /* fit as many frames as we can */
+    int group_size = 0;
+    while (size >= max_frame_size && total_slot_count < COUNT(slots))
+    {
+        slots[total_slot_count].ptr = (void*) ptr;
+        slots[total_slot_count].status = SLOT_FREE;
+        slots[total_slot_count].size = max_frame_size;
+
+        /* fixme: duplicate code (shrink_slot, frame_size_uncompressed etc) */
+        slots[total_slot_count].payload_size = 
+            (OUTPUT_COMPRESSION) ? max_frame_size - VIDF_HDR_SIZE - 4
+                                 : frame_size_uncompressed ;
+        int checked_size = (slots[total_slot_count].payload_size + VIDF_HDR_SIZE + 4 + 511) & ~511;
+        ASSERT(checked_size == slots[total_slot_count].size);
+
+        ptr += max_frame_size;
+        size -= max_frame_size;
+        group_size += max_frame_size;
+        total_slot_count++;
+        valid_slot_count++;
+        //printf("slot #%d: %x\n", total_slot_count, ptr);
+
+        /* split the group at 32M-512K */
+        /* (after this number, write speed decreases) */
+        /* (CFDMA can write up to FFFF sectors at once) */
+        /* (FFFE just in case) */
+        if (group_size + max_frame_size > 0xFFFE * 512)
+        {
+            /* insert a small gap to split the group here */
+            add_reserved_slots((void*)ptr, group_size / max_frame_size);
+            ptr += 64;
+            size -= 64;
+            group_size = 0;
+        }
+    }
+    
+    add_reserved_slots((void*)ptr, group_size / max_frame_size);
+}
+
 static REQUIRES(settings_sem)
 int add_mem_suite(struct memSuite * mem_suite, int chunk_index, int max_frame_size, int fullres_buf_size)
 {
@@ -1427,48 +1475,7 @@ int add_mem_suite(struct memSuite * mem_suite, int chunk_index, int max_frame_si
                 printf("%x: %s after full-res buffer.\n", ptr, format_memory_size(size));
             }
 
-            /* align pointer at 64 bytes */
-            intptr_t ptr_raw = ptr;
-            ptr   = (ptr + 63) & ~63;
-            size -= (ptr - ptr_raw);
-
-            /* fit as many frames as we can */
-            int group_size = 0;
-            while (size >= max_frame_size && total_slot_count < COUNT(slots))
-            {
-                slots[total_slot_count].ptr = (void*) ptr;
-                slots[total_slot_count].status = SLOT_FREE;
-                slots[total_slot_count].size = max_frame_size;
-
-                /* fixme: duplicate code (shrink_slot, frame_size_uncompressed etc) */
-                slots[total_slot_count].payload_size = 
-                    (OUTPUT_COMPRESSION) ? max_frame_size - VIDF_HDR_SIZE - 4
-                                         : frame_size_uncompressed ;
-                int checked_size = (slots[total_slot_count].payload_size + VIDF_HDR_SIZE + 4 + 511) & ~511;
-                ASSERT(checked_size == slots[total_slot_count].size);
-
-                ptr += max_frame_size;
-                size -= max_frame_size;
-                group_size += max_frame_size;
-                total_slot_count++;
-                valid_slot_count++;
-                //printf("slot #%d: %x\n", total_slot_count, ptr);
-
-                /* split the group at 32M-512K */
-                /* (after this number, write speed decreases) */
-                /* (CFDMA can write up to FFFF sectors at once) */
-                /* (FFFE just in case) */
-                if (group_size + max_frame_size > 0xFFFE * 512)
-                {
-                    /* insert a small gap to split the group here */
-                    add_reserved_slots((void*)ptr, group_size / max_frame_size);
-                    ptr += 64;
-                    size -= 64;
-                    group_size = 0;
-                }
-            }
-            
-            add_reserved_slots((void*)ptr, group_size / max_frame_size);
+            add_slots(ptr, size, max_frame_size);
 
             /* next chunk */
             chunk = GetNextMemoryChunk(mem_suite, chunk);
