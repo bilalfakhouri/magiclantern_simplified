@@ -86,6 +86,21 @@ static GUARDED_BY(GuiMainTask) int show_edmac = 0;
 /* from mlv_play module */
 extern WEAK_FUNC(ret_0) void mlv_play_file(char *filename);
 
+/* DIGIC X core (exmem.c, edmac-memcpy-dx.c, Canon stubs): DRAM Ch3 slots.
+ * Missing on other cameras: exmem_dram3_alloc() then returns NULL and
+ * mlv_lite works as before. */
+extern WEAK_FUNC(ret_0) int exmem_dram3_available(void);
+extern WEAK_FUNC(ret_0) const struct dram3_mem *exmem_dram3_alloc(void);
+extern WEAK_FUNC(ret_0) void exmem_dram3_free(void);
+extern WEAK_FUNC(ret_0) uint32_t exmem_dram3_read32(uint64_t ibus);
+extern WEAK_FUNC(ret_0) void exmem_dram3_write32(uint64_t ibus, uint32_t value);
+extern WEAK_FUNC(ret_0) uint64_t exmem_cpu_to_ibus(const void *cpu);
+extern WEAK_FUNC(ret_0) int edmac_copy_rectangle_ibus(uint64_t dst, uint64_t src,
+                                                      int src_width, int src_x, int src_y,
+                                                      int dst_width, int dst_x, int dst_y,
+                                                      int w, int h);
+extern WEAK_FUNC(ret_0) int FIO_WriteFileIBus(FILE *stream, uint64_t ibus, size_t count);
+
 /* camera-specific tricks */
 static int cam_eos_m = 0;
 static int cam_5d2 = 0;
@@ -160,6 +175,7 @@ static CONFIG_INT("raw.preview", preview_mode, 0);
 
 static CONFIG_INT("raw.warm.up", warm_up, 0);
 static CONFIG_INT("raw.use.srm.memory", use_srm_memory, 1);
+static CONFIG_INT("raw.use.dram3.memory", use_dram3_memory, 1);
 static CONFIG_INT("raw.small.hacks", small_hacks, 1);
 
 static CONFIG_INT("raw.h264.proxy", h264_proxy_menu, 0);
@@ -312,7 +328,8 @@ static volatile int raw_recording_state = RAW_IDLE;
 /* one video frame */
 struct frame_slot
 {
-    void* ptr;          /* image data */
+    void* ptr;          /* image data; for DRAM Ch3 slots: bus address, NOT a CPU pointer */
+    int dram_ch;        /* 0: CPU memory; else DRAM channel of an IBus-only slot (DIGIC X, see slot_ibus) */
     int size;           /* total size, including overheads (VIDF, padding);
                            max_frame_size for uncompressed data, lower for compressed */
     int payload_size;   /* size effectively used by image data */
@@ -330,6 +347,7 @@ struct frame_slot
 
 static GUARDED_BY(settings_sem) struct memSuite * shoot_mem_suite = 0;  /* memory suite for our buffers */
 static GUARDED_BY(settings_sem) struct memSuite * srm_mem_suite = 0;
+static GUARDED_BY(settings_sem) const struct dram3_mem * dram3_mem = 0;   /* DRAM Ch3, held while recording */
 
 static GUARDED_BY(settings_sem) void * fullsize_buffers[2];         /* original image, before cropping, double-buffered */
 static GUARDED_BY(LiveViewTask) int fullsize_buffer_pos = 0;        /* which of the full size buffers (double buffering) is currently in use */
@@ -342,6 +360,56 @@ static GUARDED_BY(settings_sem) int total_slot_count = 0;           /* how many 
 static GUARDED_BY(settings_sem) int valid_slot_count = 0;           /* total minus reserved */
 static GUARDED_BY(LiveViewTask) int capture_slot = -1;              /* in what slot are we capturing now (index) */
 static volatile                 int force_new_buffer = 0;           /* if some other task decides it's better to search for a new buffer */
+
+/*
+ * DRAM Ch3 slots (DIGIC X)
+ * ========================
+ * Slots with dram_ch != 0 live in memory the CPU can't address. Their ptr
+ * holds the bus address, so the slot bookkeeping (sizes, neighbours,
+ * shifting) works unchanged; slots_contiguous() keeps the two kinds apart.
+ * Image data goes in with EDMAC and out with FIO_WriteFileIBus; the few
+ * words the CPU touches (VIDF header, EDMAC sentinels) go through
+ * slot_read32 / slot_write32. Other modules only get CPU slots.
+ */
+static inline uint64_t slot_ibus(int i, int offset)
+{
+    return ((uint64_t)slots[i].dram_ch << 32) + (uint32_t)slots[i].ptr + offset;
+}
+
+static uint32_t slot_read32(int i, int offset)
+{
+    if (slots[i].dram_ch)
+    {
+        return exmem_dram3_read32(slot_ibus(i, offset));
+    }
+    return *(volatile uint32_t *)(slots[i].ptr + offset);
+}
+
+static void slot_write32(int i, int offset, uint32_t value)
+{
+    if (slots[i].dram_ch)
+    {
+        exmem_dram3_write32(slot_ibus(i, offset), value);
+        return;
+    }
+    *(volatile uint32_t *)(slots[i].ptr + offset) = value;
+}
+
+static void slot_write_vidf_hdr(int i, const mlv_vidf_hdr_t *hdr)
+{
+    const uint32_t *words = (const uint32_t *)hdr;
+    for (int k = 0; k < (int)(sizeof(*hdr) / 4); k++)
+    {
+        slot_write32(i, 4 * k, words[k]);
+    }
+}
+
+/* does slot b start right where slot a ends, in the same kind of memory? */
+static inline int slots_contiguous(int a, int b)
+{
+    return slots[a].dram_ch == slots[b].dram_ch &&
+           slots[b].ptr == slots[a].ptr + slots[a].size;
+}
 
 
 static GUARDED_BY(LiveViewTask) int writing_queue[COUNT(slots)+1];  /* queue of completed frames (slot indices) waiting to be saved */
@@ -489,7 +557,7 @@ void mlv_rec_get_slot_info(int32_t slot, uint32_t *size, void **address)
         return;
     }
     
-    *address = slots[slot].ptr;
+    *address = slots[slot].dram_ch ? NULL : slots[slot].ptr;
     *size = slots[slot].size;
 }
 
@@ -501,7 +569,7 @@ int32_t mlv_rec_get_free_slot()
     for (int i = 0; (i < total_slot_count) && (ret == -1); i++)
     {
         uint32_t old_int = cli();
-        if (slots[i].status == SLOT_FREE)
+        if (slots[i].status == SLOT_FREE && !slots[i].dram_ch)    /* other modules write with the CPU */
         {
             slots[i].status = SLOT_LOCKED;
             ret = i;
@@ -1392,7 +1460,7 @@ static void * alloc_fullsize_buffer(struct memSuite * mem_suite, int fullres_buf
 }
 
 static REQUIRES(settings_sem)
-void add_reserved_slots(void * ptr, int n)
+void add_reserved_slots(void * ptr, int dram_ch, int n)
 {
     /* each group has some additional (empty) slots,
      * to be used when frames are compressed
@@ -1401,19 +1469,22 @@ void add_reserved_slots(void * ptr, int n)
     for (int i = 0; i < n && total_slot_count < COUNT(slots); i++)
     {
         slots[total_slot_count].ptr = ptr;
+        slots[total_slot_count].dram_ch = dram_ch;
         slots[total_slot_count].size = 0;
         slots[total_slot_count].status = SLOT_RESERVED;
         total_slot_count++;
     }
 }
 
-/* fill one contiguous block of memory with frame slots */
+/* fill one contiguous block of memory with frame slots
+ * (ptr: CPU address, or bus address on DRAM channel dram_ch) */
 static REQUIRES(settings_sem)
-void add_slots(intptr_t ptr, int size, int max_frame_size)
+void add_slots(intptr_t ptr, int size, int dram_ch, int max_frame_size)
 {
-    /* align pointer at 64 bytes */
+    /* align pointer at 64 bytes (DRAM Ch3: 512) */
     intptr_t ptr_raw = ptr;
-    ptr   = (ptr + 63) & ~63;
+    intptr_t align = dram_ch ? 512 : 64;
+    ptr   = (ptr + align - 1) & ~(align - 1);
     size -= (ptr - ptr_raw);
 
     /* fit as many frames as we can */
@@ -1421,6 +1492,7 @@ void add_slots(intptr_t ptr, int size, int max_frame_size)
     while (size >= max_frame_size && total_slot_count < COUNT(slots))
     {
         slots[total_slot_count].ptr = (void*) ptr;
+        slots[total_slot_count].dram_ch = dram_ch;
         slots[total_slot_count].status = SLOT_FREE;
         slots[total_slot_count].size = max_frame_size;
 
@@ -1444,15 +1516,17 @@ void add_slots(intptr_t ptr, int size, int max_frame_size)
         /* (FFFE just in case) */
         if (group_size + max_frame_size > 0xFFFE * 512)
         {
-            /* insert a small gap to split the group here */
-            add_reserved_slots((void*)ptr, group_size / max_frame_size);
-            ptr += 64;
-            size -= 64;
+            /* insert a small gap to split the group here
+             * (DRAM Ch3: keep 512-byte alignment for the card DMA, like the test used) */
+            int gap = dram_ch ? 512 : 64;
+            add_reserved_slots((void*)ptr, dram_ch, group_size / max_frame_size);
+            ptr += gap;
+            size -= gap;
             group_size = 0;
         }
     }
     
-    add_reserved_slots((void*)ptr, group_size / max_frame_size);
+    add_reserved_slots((void*)ptr, dram_ch, group_size / max_frame_size);
 }
 
 static REQUIRES(settings_sem)
@@ -1475,7 +1549,7 @@ int add_mem_suite(struct memSuite * mem_suite, int chunk_index, int max_frame_si
                 printf("%x: %s after full-res buffer.\n", ptr, format_memory_size(size));
             }
 
-            add_slots(ptr, size, max_frame_size);
+            add_slots(ptr, size, 0, max_frame_size);
 
             /* next chunk */
             chunk = GetNextMemoryChunk(mem_suite, chunk);
@@ -1483,6 +1557,49 @@ int add_mem_suite(struct memSuite * mem_suite, int chunk_index, int max_frame_si
     }
     
     return chunk_index;
+}
+
+/* DIGIC X: frame slots in DRAM Ch3, after all CPU slots */
+static REQUIRES(settings_sem)
+void add_dram3_slots(int max_frame_size)
+{
+    if (!dram3_mem)
+    {
+        return;
+    }
+
+    int before = valid_slot_count;
+    for (int k = 0; k < dram3_mem->count; k++)
+    {
+        uint64_t ibus = dram3_mem->range[k].ibus;
+        add_slots((intptr_t)(uint32_t)ibus, dram3_mem->range[k].size, (int)(ibus >> 32), max_frame_size);
+    }
+    printf("%d slots from DRAM Ch3.\n", valid_slot_count - before);
+}
+
+/* DIGIC X: take DRAM Ch3 for this recording. Uncompressed output only:
+ * lossless compression is not ported to DIGIC X, and its output path
+ * needs a CPU address (CreateMemorySuite). */
+static REQUIRES(settings_sem)
+void alloc_dram3()
+{
+    if (dram3_mem || !use_dram3_memory || OUTPUT_COMPRESSION)
+    {
+        return;
+    }
+
+    dram3_mem = exmem_dram3_alloc();
+    if (dram3_mem && !dram3_mem->cpu_access)
+    {
+        printf("DRAM Ch3: no CPU access, not used.\n");
+        exmem_dram3_free();
+        dram3_mem = 0;
+    }
+    if (dram3_mem)
+    {
+        printf("DRAM Ch3 memory: %s\n", format_memory_size(dram3_mem->total));
+        configured_max_frame_size = 0;      /* setup_buffers must add the new slots */
+    }
 }
 
 static REQUIRES(settings_sem)
@@ -1513,6 +1630,11 @@ void free_buffers()
     {
         srm_free_suite(srm_mem_suite);
         srm_mem_suite = 0;
+    }
+    if (dram3_mem)
+    {
+        exmem_dram3_free();
+        dram3_mem = 0;
     }
 }
 
@@ -1623,6 +1745,7 @@ int setup_buffers()
     chunk_index = add_mem_suite(shoot_mem_suite, chunk_index, max_frame_size, fullres_buf_size);
     printf("%d slots from shoot_malloc.\n", valid_slot_count);
     chunk_index = add_mem_suite(srm_mem_suite, chunk_index, max_frame_size, fullres_buf_size);
+    add_dram3_slots(max_frame_size);
 
     if (0)
     {
@@ -1674,7 +1797,7 @@ static void show_buffer_status()
 
         for (int i = 0; i < total_slot_count; i++)
         {
-            if (i > 0 && slots[i].ptr != slots[i-1].ptr + slots[i-1].size)
+            if (i > 0 && !slots_contiguous(i-1, i))
             {
                 /* new chunk */
                 chunk_start = (uint32_t) slots[i].ptr;
@@ -2246,7 +2369,7 @@ int choose_next_capture_slot()
     if (
         capture_slot >= 0 && 
         capture_slot + 1 < total_slot_count && 
-        slots[capture_slot + 1].ptr == slots[capture_slot].ptr + slots[capture_slot].size && 
+        slots_contiguous(capture_slot, capture_slot + 1) && 
         slots[capture_slot + 1].status == SLOT_FREE &&
         !force_new_buffer
        )
@@ -2256,19 +2379,16 @@ int choose_next_capture_slot()
     /* choose the largest contiguous free section */
     /* O(n), n = total_slot_count */
     int len = 0;
-    void* prev_ptr = PTR_INVALID;
-    int prev_size = 0;
+    int prev = -1;              /* previous slot, if it was free */
     int best_len = 0;
     int best_index = -1;
     for (int i = 0; i < total_slot_count; i++)
     {
         if (slots[i].status == SLOT_FREE)
         {
-            if (slots[i].ptr == prev_ptr + prev_size)
+            if (prev >= 0 && slots_contiguous(prev, i))
             {
                 len++;
-                prev_ptr = slots[i].ptr;
-                prev_size = slots[i].size;
                 if (len > best_len)
                 {
                     best_len = len;
@@ -2278,19 +2398,18 @@ int choose_next_capture_slot()
             else
             {
                 len = 1;
-                prev_ptr = slots[i].ptr;
-                prev_size = slots[i].size;
                 if (len > best_len)
                 {
                     best_len = len;
                     best_index = i;
                 }
             }
+            prev = i;
         }
         else
         {
             len = 0;
-            prev_ptr = PTR_INVALID;
+            prev = -1;
         }
     }
 
@@ -2330,12 +2449,12 @@ void shrink_slot(int slot_index, int new_frame_size)
 
     slots[i].size = new_size;
     slots[i].payload_size = new_frame_size;
-    ((mlv_vidf_hdr_t*)slots[i].ptr)->blockSize
-        = slots[i].size;
+    slot_write32(i, offsetof(mlv_vidf_hdr_t, blockSize), slots[i].size);
 
     int linked =
         (i+1 < total_slot_count) &&
         (slots[i+1].status == SLOT_FREE || slots[i+1].status == SLOT_RESERVED) &&
+        (slots[i+1].dram_ch == slots[i].dram_ch) &&
         (slots[i+1].ptr == slots[i].ptr + old_size);
 
     if (linked)
@@ -2394,7 +2513,7 @@ void free_slot(int slot_index)
     /* find first slot from this chunk */
     while ((i-1 >= 0) &&
            (slots[i-1].status == SLOT_FREE || slots[i-1].status == SLOT_RESERVED) &&
-           (slots[i].ptr == slots[i-1].ptr + slots[i-1].size))
+           slots_contiguous(i-1, i))
     {
         i--;
     }
@@ -2404,7 +2523,7 @@ void free_slot(int slot_index)
     i = slot_index;
     while ((i+1 < total_slot_count) &&
            (slots[i+1].status == SLOT_FREE || slots[i+1].status == SLOT_RESERVED) &&
-           (slots[i+1].ptr == slots[i].ptr + slots[i].size))
+           slots_contiguous(i, i+1))
     {
         i++;
     }
@@ -2466,8 +2585,7 @@ void FAST pre_record_discard_frame()
             else if (slots[i].frame_number > pre_record_first_frame)
             {
                 slots[i].frame_number--;
-                ((mlv_vidf_hdr_t*)slots[i].ptr)->frameNumber
-                    = slots[i].frame_number - 1;
+                slot_write32(i, offsetof(mlv_vidf_hdr_t, frameNumber), slots[i].frame_number - 1);
             }
         }
     }
@@ -2566,27 +2684,28 @@ void FAST pre_record_vsync_step()
 
 #define FRAME_SENTINEL 0xA5A5A5A5 /* for double-checking EDMAC operations */
 
+/* offsets in the slot, see VIDF_HDR_SIZE */
+static int frame_end_offset(int slot_index)
+{
+    return VIDF_HDR_SIZE + ((slots[slot_index].payload_size + 3) & ~3) - 4;
+}
+
 static REQUIRES(LiveViewTask)
 void frame_add_checks(int slot_index)
 {
     ASSERT(slots[slot_index].ptr);
-    void* ptr = slots[slot_index].ptr + VIDF_HDR_SIZE;
-    uint32_t edmac_size = (slots[slot_index].payload_size + 3) & ~3;
-    uint32_t* frame_end = ptr + edmac_size - 4;
-    uint32_t* after_frame = ptr + edmac_size;
-    uint32_t* last_valid = slots[slot_index].ptr + slots[slot_index].size - 4;
+    int frame_end = frame_end_offset(slot_index);
+    int after_frame = frame_end + 4;
+    int last_valid = slots[slot_index].size - 4;
     ASSERT(after_frame <= last_valid);
-    *(volatile uint32_t*) frame_end = FRAME_SENTINEL; /* this will be overwritten by EDMAC */
-    *(volatile uint32_t*) after_frame = FRAME_SENTINEL; /* this shalt not be overwritten */
+    slot_write32(slot_index, frame_end, FRAME_SENTINEL);    /* this will be overwritten by EDMAC */
+    slot_write32(slot_index, after_frame, FRAME_SENTINEL);  /* this shalt not be overwritten */
 }
 
 static void frame_fake_edmac_check(int slot_index)
 {
     ASSERT(slots[slot_index].ptr);
-    void* ptr = slots[slot_index].ptr + VIDF_HDR_SIZE;
-    uint32_t edmac_size = (slots[slot_index].payload_size + 3) & ~3;
-    uint32_t* after_frame = ptr + edmac_size;
-    *(volatile uint32_t*) after_frame = FRAME_SENTINEL;
+    slot_write32(slot_index, frame_end_offset(slot_index) + 4, FRAME_SENTINEL);
 }
 
 // Returns:
@@ -2597,17 +2716,14 @@ static REQUIRES(RawRecTask)
 int get_frame_save_status(int slot_index)
 {
     ASSERT(slots[slot_index].ptr);
-    void* ptr = slots[slot_index].ptr + VIDF_HDR_SIZE;
-    uint32_t edmac_size = (slots[slot_index].payload_size + 3) & ~3;
-    uint32_t* frame_end = ptr + edmac_size - 4;
-    uint32_t* after_frame = ptr + edmac_size;
-    if (*(volatile uint32_t*) after_frame != FRAME_SENTINEL)
+    int frame_end = frame_end_offset(slot_index);
+    if (slot_read32(slot_index, frame_end + 4) != FRAME_SENTINEL)
     {
         /* EDMAC overflow */
         return -1;
     }
     
-    if (*(volatile uint32_t*) frame_end == FRAME_SENTINEL)
+    if (slot_read32(slot_index, frame_end) == FRAME_SENTINEL)
     {
         /* frame not yet complete */
         return 0;
@@ -2775,6 +2891,8 @@ static void compress_task()
 
         if (OUTPUT_COMPRESSION)
         {
+            ASSERT(!slots[slot_index].dram_ch);     /* alloc_dram3 skips compressed output */
+
             /* PackMem appears to require stricter memory alignment */
             ASSERT(((uint32_t)out_ptr & 0x3F) == 0);
             ASSERT((max_frame_size & 0xFFF) == 0);
@@ -2829,6 +2947,21 @@ static void compress_task()
             {
                 measured_compression_ratio = (compressed_size/128) * 100 / (frame_size_uncompressed/128);
             }
+        }
+        else if (slots[slot_index].dram_ch)
+        {
+            /* DRAM Ch3 slot: same crop, IBus addresses (blocking) */
+            edmac_active = 1;
+            if (edmac_copy_rectangle_ibus(
+                    slot_ibus(slot_index, VIDF_HDR_SIZE), exmem_cpu_to_ibus(fullSizeBuffer),
+                    raw_info.pitch, (skip_x + 7)/8*BPP, skip_y/2*2,
+                    res_x * BPP/8, 0, 0,
+                    res_x * BPP/8, res_y) == 0)
+            {
+                edmac_cbr_r(NULL);
+                edmac_cbr_w(NULL);
+            }
+            /* on error edmac_active stays set: next frame stops with "EDMAC timeout" */
         }
         else
         {
@@ -2930,7 +3063,7 @@ void process_frame(int next_fullsize_buffer_pos)
     vidf_hdr.cropPosY = skip_y & ~1;
     vidf_hdr.panPosX = skip_x;
     vidf_hdr.panPosY = skip_y;
-    *(mlv_vidf_hdr_t*)(slots[capture_slot].ptr) = vidf_hdr;
+    slot_write_vidf_hdr(capture_slot, &vidf_hdr);
 
     //~ printf("saving frame %d: slot %d ptr %x\n", frame_count, capture_slot, ptr);
 
@@ -3230,8 +3363,18 @@ void finish_chunk(FILE *f, int card_index)
 /* This saves a group of frames, also taking care of file splitting if required.
    Parameter num_frames is meant for counting the VIDF blocks for updating MLVI header.
  */
+/* ptr: CPU address, or bus address on DRAM channel dram_ch (DRAM Ch3 slots) */
+static int write_buffer(FILE *f, void *ptr, int dram_ch, int size)
+{
+    if (dram_ch)
+    {
+        return FIO_WriteFileIBus(f, ((uint64_t)dram_ch << 32) | (uint32_t)ptr, size);
+    }
+    return FIO_WriteFile(f, ptr, size);
+}
+
 static REQUIRES(RawRecTask)
-int write_frames(FILE **pf, void *ptr, int group_size, int num_frames, int card_index)
+int write_frames(FILE **pf, void *ptr, int dram_ch, int group_size, int num_frames, int card_index)
 {
     FILE *f = *pf;
     
@@ -3267,7 +3410,7 @@ int write_frames(FILE **pf, void *ptr, int group_size, int num_frames, int card_
         }
     }
     
-    int r = FIO_WriteFile(f, ptr, group_size);
+    int r = write_buffer(f, ptr, dram_ch, group_size);
 
     if (r != group_size) /* 4GB limit or card full? */
     {
@@ -3315,7 +3458,7 @@ int write_frames(FILE **pf, void *ptr, int group_size, int num_frames, int card_
         written_chunk[card_index] = write_mlv_chunk_headers(g, mlv_chunk, card_index);
         written_total[card_index] += written_chunk[card_index];
         
-        int r2 = written_chunk[card_index] ? FIO_WriteFile(g, ptr, group_size) : 0;
+        int r2 = written_chunk[card_index] ? write_buffer(g, ptr, dram_ch, group_size) : 0;
         if (r2 == group_size) /* new chunk worked, continue with it */
         {
             printf("Success!\n");
@@ -3439,6 +3582,7 @@ void raw_video_rec_task(uint32_t card_index)
 
         take_semaphore(settings_sem, 0);
         update_resolution_params();
+        alloc_dram3();          /* DIGIC X: only held while recording */
         setup_buffers();
         setup_bit_depth();
         give_semaphore(settings_sem);
@@ -3601,8 +3745,8 @@ void raw_video_rec_task(uint32_t card_index)
             /* consistency checks for VIDF slots */
             if (!slots[slot_index].is_meta)
             {
-                ASSERT(((mlv_vidf_hdr_t*)slots[slot_index].ptr)->blockSize == (uint32_t) slots[slot_index].size);
-                ASSERT(((mlv_vidf_hdr_t*)slots[slot_index].ptr)->frameNumber == (uint32_t) slots[slot_index].frame_number - 1);
+                ASSERT(slot_read32(slot_index, offsetof(mlv_vidf_hdr_t, blockSize)) == (uint32_t) slots[slot_index].size);
+                ASSERT(slot_read32(slot_index, offsetof(mlv_vidf_hdr_t, frameNumber)) == (uint32_t) slots[slot_index].frame_number - 1);
                 
                 if (OUTPUT_COMPRESSION)
                 {
@@ -3617,7 +3761,8 @@ void raw_video_rec_task(uint32_t card_index)
 
             /* TBH, I don't care if these are part of the same group or not,
              * as long as pointers are ordered correctly */
-            if (slots[slot_index].ptr == slots[first_slot].ptr + group_size)
+            if (slots[slot_index].dram_ch == slots[first_slot].dram_ch &&
+                slots[slot_index].ptr == slots[first_slot].ptr + group_size)
             {
                 last_grouped = i;
             }
@@ -3700,7 +3845,7 @@ void raw_video_rec_task(uint32_t card_index)
         idle_time[card_index] += t0 - last_write_timestamp;
 
         /* save a group of frames and measure execution time */
-        if (!write_frames(&f, ptr, group_size, num_frames - meta_slots, card_index))
+        if (!write_frames(&f, ptr, slots[first_slot].dram_ch, group_size, num_frames - meta_slots, card_index))
         {
             goto abort;
         }
@@ -3841,7 +3986,7 @@ abort_and_check_early_stop:
             mlv_rec_call_cbr(MLV_REC_EVENT_BLOCK, block);
             
             /* use the write func to write the block */
-            write_frames(&f, block, block->blockSize, 0, card_index);
+            write_frames(&f, block, 0, block->blockSize, 0, card_index);
             
             /* free the block */
             free(block);
@@ -3910,7 +4055,7 @@ abort_and_check_early_stop:
             slots[slot_index].status = SLOT_WRITING;
 
             if (indicator_display == INDICATOR_RAW_BUFFER) show_buffer_status();
-            if (!write_frames(&f, slots[slot_index].ptr, slots[slot_index].size,
+            if (!write_frames(&f, slots[slot_index].ptr, slots[slot_index].dram_ch, slots[slot_index].size,
                               slots[slot_index].is_meta ? 0 : 1, card_index))
             {
                 NotifyBox(5000, (card_index == 0) ? "Card Full" : "SD Card Full");
@@ -4009,6 +4154,18 @@ static MENU_SELECT_FUNC(raw_playback_start)
             return;
         }
         mlv_play_file(raw_movie_filename);
+    }
+}
+
+static MENU_UPDATE_FUNC(dram3_memory_update)
+{
+    if (!exmem_dram3_available())
+    {
+        MENU_SET_WARNING(MENU_WARN_NOT_WORKING, "Not available on this camera.");
+    }
+    else if (OUTPUT_COMPRESSION)
+    {
+        MENU_SET_WARNING(MENU_WARN_NOT_WORKING, "Only used with uncompressed output.");
     }
 }
 
@@ -4142,6 +4299,15 @@ static struct menu_entry raw_video_menu[] =
                 .max = 1,
                 .help = "Allocate memory from SRM job buffers (normally used for still capture).",
                 .help2 = "Side effect: will show BUSY on the screen and might affect other functions.",
+                .advanced = 1,
+            },
+            {
+                .name = "Use DRAM3 memory",
+                .priv = &use_dram3_memory,
+                .max = 1,
+                .update = dram3_memory_update,
+                .help = "Record into DRAM channel 3 (DIGIC X), taken only while recording.",
+                .help2 = "Canon can't use this memory until recording stops.",
                 .advanced = 1,
             },
             {
@@ -4558,7 +4724,7 @@ static unsigned int raw_rec_init()
     int version = get_digic_version();
     if (version > 5)
     { // hide features unsupported on modern cams
-        raw_video_menu->children[11].shidden = 1; // Hide "Small hacks"
+        raw_video_menu->children[12].shidden = 1; // Hide "Small hacks"
         small_hacks = 0;
     }
     if (version != 5)
@@ -4638,6 +4804,7 @@ MODULE_CONFIGS_START()
     MODULE_CONFIG(dolly_mode)
     MODULE_CONFIG(preview_mode)
     MODULE_CONFIG(use_srm_memory)
+    MODULE_CONFIG(use_dram3_memory)
     MODULE_CONFIG(small_hacks)
     MODULE_CONFIG(warm_up)
     MODULE_CONFIG(sync_beep)
