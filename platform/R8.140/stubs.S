@@ -229,6 +229,19 @@ THUMB_FN(0xe0187670, XCM_GetSourceSurface)                  // by debug message
 //THUMB_FN(0xe01871ec, XCM_MakeContext)                     // by debug message. Not used in code, left for reference below.
 DATA_PTR(  0x1455d0, _pXCM);                                // param1 to XCM_MakeContext() when called from VMIX_TransferRectangleToVram()
 
+/**
+ * For CONFIG_COMPOSITOR_DEDICATED_LAYER: XCM_V2 API, same as DIGIC 8.
+ * XCM has 4 source layer slots, at _pXCM + 0x1658 + 0x24 * n: MARV *,
+ * area (x, y, w, h), offset (x, y). Canon uses slots 0 and 1 (GUI).
+ * Changes take effect when Canon next rebuilds the Ximr context
+ * (XCM_MakeContext in VMIX_TransferRectangleToVram).
+ */
+THUMB_FN(0xe018740e, XCM_SetSourceSurface)                  // "XCM_SetSourceSurface layerIndex = %d"
+THUMB_FN(0xe01876a8, XCM_SetSourceArea)                     // "XCM_SetSourceArea layerIndex = %d"
+THUMB_FN(0xe01876fa, XCM_SetLayerOffset)                    // "XCM_SetLayerOffset layerIndex = %d"; x rounded down to 4
+THUMB_FN(0xe028a49c, XOC_SetLayerEnable)                    // VMIX wrapper (disp < 3, xoc < 4, layer, enable) -> XOC_SetLayerEnable(pXOC, layer, enable) 0xe01a803a
+DATA_PTR(   0x18afc, display_refresh_needed)                // if 0, VMIX_TransferRectangleToVram() does nothing
+
 /** Wrong on purpose **/
 DATA_PTR(       0x0,  LCD_Palette)
 
