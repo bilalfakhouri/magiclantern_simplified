@@ -15,6 +15,17 @@ int compositor_layer_setup();
 #define XIMR_MAX_LAYERS 6
 
 /**
+ * Source layer slots in XCM: XCM_V2 has only 4 (M6II, R8 ROMs); asking
+ * XCM_GetSourceSurface() for slot 4 or 5 prints an error and returns NULL,
+ * which would look like a free slot.
+ */
+#ifdef CONFIG_COMPOSITOR_XCM_V2
+#define XCM_MAX_LAYERS 4
+#else
+#define XCM_MAX_LAYERS XIMR_MAX_LAYERS
+#endif
+
+/**
  * color / flags field contains at least 4 information, starting from MSB:
  *
  * 8 bits: Possibly Ximr type ID for color space.

@@ -29,6 +29,7 @@
 #include "dryos.h"
 #include "bmp.h"
 #include "compositor.h"
+#include "exmem.h"
 
 #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
 /**
@@ -59,12 +60,31 @@ void _compositor_force_redraw()
     //refreshVrmsSurface(); // not needed as we do XimrExe() in bmp.c
 }
 
+#ifdef CONFIG_DIGIC_X
+/* layer memory, kept for the whole session */
+static struct ibus_buf layer_buf;
+#endif
+
 struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
 {
     // buffer for MARV structure
     struct MARV* pNewLayer = malloc(sizeof(struct MARV));
     if(pNewLayer == NULL) return NULL;
-    
+
+#ifdef CONFIG_DIGIC_X
+    // Width (= pitch) rounded up to 32 px, as Canon's CreateMARV does.
+    // Buffer aligned to 0x100 and uncacheable, on a DRAM channel Ximr may
+    // read (exmem checks it against MemiArbiter and gives the IBus address).
+    uint32_t pitch = (bmp_w + 31) & ~31;
+    if (exmem_ibus_alloc(&layer_buf, pitch * bmp_h * 4, 0x100, XIMR_PID, IBUS_BUF_LONG_LIVED))
+    {
+        free(pNewLayer); // cleanup
+        return NULL;
+    }
+    uint8_t* pBitmapData = layer_buf.cpu;
+#else
+    uint32_t pitch = bmp_w;
+
     // buffer for layer data, +0x100 for alignment
     uint8_t* pBitmapData = malloc((BMP_VRAM_SIZE * 4) + 0x100);
     if(pBitmapData == NULL) {
@@ -75,6 +95,7 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
     // Align to 0x100 and use uncacheable region.
     // This is expected by some Zico functions.
     pBitmapData = UNCACHEABLE((uint8_t*)((((uintptr_t)pBitmapData + 0x100) >> 8) << 8));
+#endif
 
     // fill MARV data
     pNewLayer->signature    = 0x5652414D;  // MARV
@@ -82,13 +103,12 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
     pNewLayer->opacity_data = 0x0;
     pNewLayer->flags        = XIMR_FLAGS_LAYER_RGBA; // see compositor.h
 #ifdef CONFIG_DIGIC_X
-    extern uint64_t MemifWindow_GetIBusAddress(uint8_t* buf);
     pNewLayer->unused_0c    = 0;
-    pNewLayer->ibus_addr    = MemifWindow_GetIBusAddress(CACHEABLE(pBitmapData));
-    pNewLayer->req_width    = (uint32_t)bmp_w;
+    pNewLayer->ibus_addr    = layer_buf.ibus;
+    pNewLayer->req_width    = bmp_w;
     pNewLayer->unused_2c    = 0;
 #endif
-    pNewLayer->width        = (uint32_t)bmp_w;
+    pNewLayer->width        = pitch;
     pNewLayer->height       = (uint32_t)bmp_h;
     // Probably pmem is not needed. No issues observed so far.
     pNewLayer->pmem         = 0x0;
@@ -108,15 +128,17 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
 #endif
 
 #ifdef CONFIG_DIGIC_X
-#error XCM is not yet implemented for DIGIC_X, see compositor.c for details!
 /*
- * Digic X uses the new "IBus" stuff for some kind of memory banking
- * We don't know how to use it yet, and Ximr now requires buffers to be
- * "on specific ibus". Otherwise camera aserts.
- *
- * I left in my best guess on Digic X implementation, but it requires malloc
- * replacment that will satisfy Ximr IBus requirements.
+ * DIGIC X (verified on R8) uses the same XCM_V2 API as DIGIC 8. Differences:
+ *  - MARV has the 64-bit IBus address of the layer data (see vram.h).
+ *  - Ximr (bus master XIMR_PID) may only read some DRAM channels (R8: Ch1
+ *    and Ch2, not Ch3) and asserts on others; exmem_ibus_alloc() checks it.
+ *  - The display is described in bmp.h (DISPLAY_W, ...); our layer holds
+ *    just the display and bmp.c scales ML's screen into it.
  */
+#if !defined(CONFIG_COMPOSITOR_XCM_V2) || !defined(CONFIG_RSCMGR_IBUS) || !defined(XIMR_PID) || !defined(DISPLAY_W)
+#error "DIGIC X dedicated layer needs CONFIG_COMPOSITOR_XCM_V2, CONFIG_RSCMGR_IBUS, XIMR_PID and DISPLAY_W"
+#endif
 #endif
 
 #ifdef CONFIG_COMPOSITOR_XCM_V1
@@ -140,6 +162,7 @@ extern uint32_t VMIX_LayersEnable[XIMR_MAX_LAYERS]; // R only, DNE on SX740
  */
 extern uint32_t XCM_SetSourceSurface(void * pXCM, uint layer, struct MARV * pMARV);
 extern uint32_t XCM_SetSourceArea(void * pXCM, uint layer, uint16_t srcX, uint16_t srcY, uint16_t srcW, uint16_t srcH);
+extern uint32_t XCM_SetLayerOffset(void * pXCM, uint layer, uint16_t dstX, uint16_t dstY);
 extern uint32_t XOC_SetLayerEnable(int p1, int p2, uint layer, int p4);
 #endif // CONFIG_COMPOSITOR_XCM_V2
 
@@ -178,23 +201,29 @@ int compositor_layer_setup()
     int newLayerID = 0;
 
     // Find first available, non used layer slot
-    while( newLayerID < XIMR_MAX_LAYERS 
+    while( newLayerID < XCM_MAX_LAYERS
       && XCM_GetSourceSurface(_pXCM, newLayerID) != NULL)
     {
         newLayerID++;
     }
 
     DryosDebugMsg(0, 15, "Found %d layers", newLayerID);
-    if(newLayerID >= XIMR_MAX_LAYERS)
+    if(newLayerID >= XCM_MAX_LAYERS)
     {
         DryosDebugMsg(0, 15, "Too many layers: %d/%d, aborting!",
-                newLayerID, XIMR_MAX_LAYERS);
+                newLayerID, XCM_MAX_LAYERS);
         return 1;
     }
 
+#ifdef DISPLAY_W
+    // our layer holds just the display; bmp.c scales ML's screen into it
+    uint32_t bmp_w = DISPLAY_W;
+    uint32_t bmp_h = DISPLAY_H;
+#else
     // compute our layer size
     uint32_t bmp_w = BMP_W_PLUS - BMP_W_MINUS;
     uint32_t bmp_h = BMP_H_PLUS - BMP_H_MINUS;
+#endif
 
     // create layer
     pNewLayer = _compositor_create_layer(bmp_w, bmp_h);
@@ -216,7 +245,14 @@ int compositor_layer_setup()
 
 #ifdef CONFIG_COMPOSITOR_XCM_V2
     XCM_SetSourceSurface(_pXCM, newLayerID, pNewLayer);
+#ifdef DISPLAY_W
+    // whole layer, at the display's top left (offset is in display pixels);
+    // a free slot may still have an old area / offset
+    XCM_SetSourceArea(_pXCM, newLayerID, 0, 0, DISPLAY_W, DISPLAY_H);
+    XCM_SetLayerOffset(_pXCM, newLayerID, 0, 0);
+#else
     XCM_SetSourceArea(_pXCM, newLayerID, -BMP_W_MINUS, -BMP_H_MINUS, BMP_W_PLUS + BMP_W_MINUS, BMP_H_PLUS + BMP_H_MINUS);
+#endif
     XOC_SetLayerEnable(0, 0, newLayerID, 1); // seems layer is enabled by default
 #endif // CONFIG_COMPOSITOR_XCM_V2
 
