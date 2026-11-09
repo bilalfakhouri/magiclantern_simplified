@@ -191,21 +191,95 @@ void bmp_idle_copy(int direction, int fullsize)
 // but this struct is not yet determined for 200D
 extern int XimrExe(void *);
 extern struct semaphore *winsys_sem;
+
+#ifdef DISPLAY_W
+/*
+ * The display is larger than ML's 720x480 screen (R8: 900x600, see bmp.h).
+ * display_scale_from_indexed() scales ML's screen up to the whole display
+ * while converting it to RGBA: display pixel x shows ML pixel x*4/5, so
+ * every 4 ML pixels become 5 display pixels with the first one doubled;
+ * rows likewise.
+ *
+ * dst is the display's top left pixel in the RGBA layer, pitch the layer's
+ * pixels per row. With keep, pixels ML leaves transparent keep the layer's
+ * own pixel (Canon's GUI, when we draw into Canon's layer).
+ */
+#if DISPLAY_W * 4 != 720 * 5 || DISPLAY_H * 4 != 480 * 5
+#error "only 5:4 scaling (720x480 -> 900x600) is implemented"
+#endif
+
+/* display's top left pixel in Canon's GUI layer */
+#define CANON_GUI_DISPLAY (CANON_GUI_Y0 * CANON_GUI_PITCH + CANON_GUI_X0)
+
+/* RGBA of every index, filled once by bmp_init(): indexed2rgb() per pixel is slow */
+static uint32_t display_lut[256];
+
+static void display_lut_init(void)
+{
+    for (int i = 0; i < 256; i++)
+    {
+        display_lut[i] = indexed2rgb(i);
+    }
+}
+
+static inline void put_rgba(uint32_t *dst, uint8_t idx, int keep)
+{
+    uint32_t rgb = display_lut[idx];
+    if (rgb || !keep)
+    {
+        *dst = rgb;
+    }
+}
+
+static void FAST display_scale_from_indexed(const uint8_t *indexed, uint32_t *dst, int pitch, int keep)
+{
+    const uint8_t *ml = indexed + BMP_HDMI_OFFSET;      /* ML (0,0) */
+
+    for (int y = 0; y < DISPLAY_H; y++)
+    {
+        const uint8_t *s = ml + (y * 4 / 5) * BMPPITCH;
+        uint32_t *d = dst + y * pitch;
+        for (int x = 0; x < DISPLAY_W; x += 5, s += 4, d += 5)
+        {
+            put_rgba(&d[0], s[0], keep);
+            put_rgba(&d[1], s[0], keep);
+            put_rgba(&d[2], s[1], keep);
+            put_rgba(&d[3], s[2], keep);
+            put_rgba(&d[4], s[3], keep);
+        }
+    }
+}
+
+static void display_clear(uint32_t *dst, int pitch)
+{
+    for (int y = 0; y < DISPLAY_H; y++)
+    {
+        bzero32(dst + y * pitch, DISPLAY_W * 4);
+    }
+}
+#endif // DISPLAY_W
+
 void refresh_yuv_from_rgb(void)
 {
-    // get our indexed buffer, convert into our real rgb buffer
-    uint8_t *b = bmp_vram_indexed;
-    uint32_t *rgb_data = NULL;
-
-    if (rgb_vram_info != NULL)
-    {
-        rgb_data = (uint32_t *)rgb_vram_info->bitmap_data;
-    }
-    else
+    if (rgb_vram_info == NULL)
     {
         DryosDebugMsg(0, 15, "rgb_vram_info was NULL, can't refresh OSD");
         return;
     }
+
+#ifdef DISPLAY_W
+    // Canon's GUI layer: keep Canon's pixels where ML draws nothing
+    uint32_t *layer = (uint32_t *)rgb_vram_info->bitmap_data;
+    #ifdef CONFIG_INSTALLER
+    int keep = 1;
+    #else
+    int keep = !zebra_should_run();     // zebras: always draw our stuff, including full alpha
+    #endif
+    display_scale_from_indexed(bmp_vram_indexed, layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH, keep);
+#else
+    // get our indexed buffer, convert into our real rgb buffer
+    uint8_t *b = bmp_vram_indexed;
+    uint32_t *rgb_data = (uint32_t *)rgb_vram_info->bitmap_data;
 
 #if !defined(CONFIG_INSTALLER)
     if(zebra_should_run()){
@@ -257,6 +331,7 @@ void refresh_yuv_from_rgb(void)
 #if !defined(CONFIG_INSTALLER)
     }
 #endif
+#endif // DISPLAY_W
 
     // trigger Ximr to render to OSD from RGB buffer
 #ifdef CONFIG_DIGIC_VI
@@ -272,7 +347,12 @@ void refresh_yuv_from_rgb(void)
 void rgba_buffer_clear()
 {
     if (rgb_vram_info == NULL) return;
+#ifdef DISPLAY_W
+    uint32_t *layer = (uint32_t *)rgb_vram_info->bitmap_data;
+    display_clear(layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH);
+#else
     bzero32(rgb_vram_info->bitmap_data, BMP_VRAM_SIZE*4);
+#endif
 }
 
 #if defined(CONFIG_INSTALLER)
@@ -1485,6 +1565,9 @@ static void bmp_init(void* unused)
         memset(bmp_vram_indexed, COLOR_TRANSPARENT_BLACK, BMP_VRAM_SIZE);
     else
         ASSERT(1);
+#ifdef DISPLAY_W
+    display_lut_init();
+#endif
 #endif
 
     _update_vram_params();

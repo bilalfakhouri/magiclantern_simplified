@@ -155,7 +155,8 @@ inline uint8_t *bmp_vram_raw() {
     #if defined(CONFIG_R8)
     /* The 900x600 display shows a DISPLAY_W x DISPLAY_H window of Canon's
      * GUI layer (CANON_GUI_PITCH pixels per row), starting at
-     * (CANON_GUI_X0, CANON_GUI_Y0). */
+     * (CANON_GUI_X0, CANON_GUI_Y0). ML draws its usual 720x480 screen in
+     * the standard buffer below; bmp.c scales it to the whole display. */
     #define DISPLAY_W           900
     #define DISPLAY_H           600
     #define CANON_GUI_PITCH     2048
@@ -163,22 +164,14 @@ inline uint8_t *bmp_vram_raw() {
     #define CANON_GUI_Y0        37
     #endif
 
-    #if defined(CONFIG_DIGIC_X) && !defined(CONFIG_COMPOSITOR_DEDICATED_LAYER)
+    #if defined(CONFIG_DIGIC_X) && !defined(CONFIG_COMPOSITOR_DEDICATED_LAYER) && !defined(DISPLAY_W)
     // kitor FIXME: R5 has different layer size and position...
     // this is a temporary integration before a proper one will be developed
-    #if defined(CONFIG_R8)
-        /* ML's 720x480 screen starts at the display's corner */
-        #define BMP_W_PLUS   (CANON_GUI_X0 + DISPLAY_W)     /* 1090 */
-        #define BMP_W_MINUS  (-CANON_GUI_X0)                /* -190 */
-        #define BMP_H_PLUS   481
-        #define BMP_H_MINUS  (-CANON_GUI_Y0)                /* -37 */
-    #else
-        // R5
-        #define BMP_W_PLUS   872
-        #define BMP_W_MINUS -152
-        #define BMP_H_PLUS   510
-        #define BMP_H_MINUS -30
-    #endif
+    // R5
+    #define BMP_W_PLUS   872
+    #define BMP_W_MINUS -152
+    #define BMP_H_PLUS   510
+    #define BMP_H_MINUS -30
     #define BMP_LAYER_WIDTH 2048
     #define BMPPITCH 2048
     #define BMP_VRAM_SIZE (2048*540)
