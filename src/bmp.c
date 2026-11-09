@@ -405,6 +405,35 @@ void rgba_buffer_clear()
 int ml_shutdown_requested = 0;
 #endif
 
+#if defined(CONFIG_COMPOSITOR_DEDICATED_LAYER) && !defined(CONFIG_INSTALLER)
+/*
+ * Canon used to erase ML's drawings whenever its screen changed: they were
+ * in Canon's GUI layer. Nothing draws over our own layer, so clear it when
+ * the screen ML draws for changes: LiveView overlays, playback, or
+ * something else (Canon menus, dialogs, sleep...).
+ */
+static void clear_on_screen_change(void)
+{
+    static int last_screen = -1;
+
+    if (rgb_vram_info != pNewLayer)
+    {
+        return;     // drawing into Canon's layer: Canon cleans up
+    }
+    if (gui_menu_shown())
+    {
+        return;     // ML's menu manages its own screen (menu_close() clears it)
+    }
+
+    int screen = zebra_should_run() ? 1 : PLAY_OR_QR_MODE ? 2 : 0;
+    if (screen != last_screen)
+    {
+        last_screen = screen;
+        clrscr();
+    }
+}
+#endif
+
 void refresh_yuv_from_rgb_task(void *unused)
 {
     #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
@@ -415,6 +444,9 @@ void refresh_yuv_from_rgb_task(void *unused)
     #endif
     TASK_LOOP
     {
+        #if defined(CONFIG_COMPOSITOR_DEDICATED_LAYER) && !defined(CONFIG_INSTALLER)
+        clear_on_screen_change();
+        #endif
         if (ml_refresh_display_needed && !ml_shutdown_requested && DISPLAY_IS_ON)
         {
             refresh_yuv_from_rgb();
