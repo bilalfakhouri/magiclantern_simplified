@@ -3922,6 +3922,9 @@ BMP_LOCK (
     if(LiveViewApp_dialog)
     {
         dialog_redraw(LiveViewApp_dialog); // try to redraw (this has semaphores for winsys)
+        #ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
+        clrscr(); // Canon's redraw doesn't erase ML's drawings in our own layer
+        #endif
     }
     else
     {
