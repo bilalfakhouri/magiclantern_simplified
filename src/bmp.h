@@ -152,14 +152,26 @@ inline uint8_t *bmp_vram_raw() {
     #define SET_4BIT_PIXEL(p, x, color) *(char*)(p) = ((x) % 2) ? ((*(char*)(p) & 0x0F) | (D2V(color) << 4)) : ((*(char*)(p) & 0xF0) | (D2V(color) & 0x0F))
 
 #else // dryos
+    #if defined(CONFIG_R8)
+    /* The 900x600 display shows a DISPLAY_W x DISPLAY_H window of Canon's
+     * GUI layer (CANON_GUI_PITCH pixels per row), starting at
+     * (CANON_GUI_X0, CANON_GUI_Y0). */
+    #define DISPLAY_W           900
+    #define DISPLAY_H           600
+    #define CANON_GUI_PITCH     2048
+    #define CANON_GUI_X0        190
+    #define CANON_GUI_Y0        37
+    #endif
+
     #if defined(CONFIG_DIGIC_X) && !defined(CONFIG_COMPOSITOR_DEDICATED_LAYER)
     // kitor FIXME: R5 has different layer size and position...
     // this is a temporary integration before a proper one will be developed
     #if defined(CONFIG_R8)
-        #define BMP_W_PLUS   1090
-        #define BMP_W_MINUS -190
+        /* ML's 720x480 screen starts at the display's corner */
+        #define BMP_W_PLUS   (CANON_GUI_X0 + DISPLAY_W)     /* 1090 */
+        #define BMP_W_MINUS  (-CANON_GUI_X0)                /* -190 */
         #define BMP_H_PLUS   481
-        #define BMP_H_MINUS -37
+        #define BMP_H_MINUS  (-CANON_GUI_Y0)                /* -37 */
     #else
         // R5
         #define BMP_W_PLUS   872
