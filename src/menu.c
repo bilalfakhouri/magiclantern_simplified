@@ -4979,7 +4979,17 @@ menu_redraw_task()
             
             if (!menu_redraw_blocked)
             {
-                menu_redraw_do();
+                if (DOUBLE_BUFFERING)
+                {
+                    menu_redraw_do();
+                }
+                else
+                {
+                    /* drawing straight to the screen buffer: draw the whole
+                     * frame under the lock, so the RGBA refresh (bmp.c)
+                     * never converts a half-drawn menu */
+                    BMP_LOCK( menu_redraw_do(); )
+                }
             }
         }
     }
