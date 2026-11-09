@@ -75,6 +75,9 @@ int compositor_layer_setup();
 // ID of our allocated layer. See compositor.c for initialization.
 extern int _rgb_vram_layer_id; // = CANON_GUI_LAYER_ID;
 
+// Our layer, once compositor_layer_setup() has created it (else NULL).
+extern struct MARV *pNewLayer;
+
 #ifdef CONFIG_COMPOSITOR_XCM
 extern void* _pXCM;
 extern struct MARV *XCM_GetSourceSurface(void *pXCM, uint32_t layer_id);

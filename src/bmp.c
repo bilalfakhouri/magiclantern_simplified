@@ -257,6 +257,25 @@ static void display_clear(uint32_t *dst, int pitch)
         bzero32(dst + y * pitch, DISPLAY_W * 4);
     }
 }
+
+/*
+ * 1 when marv is ML's own layer from compositor.c: it holds just the
+ * display, and every pixel in it is ours. 0 for Canon's GUI layer (no own
+ * layer, or setup failed).
+ *
+ * Decided from the MARV itself, which callers read once from rgb_vram_info:
+ * compositor_layer_setup() may switch rgb_vram_info while another task
+ * refreshes, and the geometry must match the buffer we write to.
+ */
+static int own_layer(const struct MARV *marv)
+{
+#ifdef CONFIG_COMPOSITOR_DEDICATED_LAYER
+    return marv == pNewLayer;
+#else
+    (void)marv;
+    return 0;
+#endif
+}
 #endif // DISPLAY_W
 
 void refresh_yuv_from_rgb(void)
@@ -268,14 +287,22 @@ void refresh_yuv_from_rgb(void)
     }
 
 #ifdef DISPLAY_W
-    // Canon's GUI layer: keep Canon's pixels where ML draws nothing
-    uint32_t *layer = (uint32_t *)rgb_vram_info->bitmap_data;
-    #ifdef CONFIG_INSTALLER
-    int keep = 1;
-    #else
-    int keep = !zebra_should_run();     // zebras: always draw our stuff, including full alpha
-    #endif
-    display_scale_from_indexed(bmp_vram_indexed, layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH, keep);
+    struct MARV *marv = rgb_vram_info;      // read once, see own_layer()
+    uint32_t *layer = (uint32_t *)marv->bitmap_data;
+    if (own_layer(marv))
+    {
+        display_scale_from_indexed(bmp_vram_indexed, layer, marv->width, 0);
+    }
+    else
+    {
+        // Canon's GUI layer: keep Canon's pixels where ML draws nothing
+        #ifdef CONFIG_INSTALLER
+        int keep = 1;
+        #else
+        int keep = !zebra_should_run();     // zebras: always draw our stuff, including full alpha
+        #endif
+        display_scale_from_indexed(bmp_vram_indexed, layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH, keep);
+    }
 #else
     // get our indexed buffer, convert into our real rgb buffer
     uint8_t *b = bmp_vram_indexed;
@@ -348,8 +375,16 @@ void rgba_buffer_clear()
 {
     if (rgb_vram_info == NULL) return;
 #ifdef DISPLAY_W
-    uint32_t *layer = (uint32_t *)rgb_vram_info->bitmap_data;
-    display_clear(layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH);
+    struct MARV *marv = rgb_vram_info;      // read once, see own_layer()
+    uint32_t *layer = (uint32_t *)marv->bitmap_data;
+    if (own_layer(marv))
+    {
+        display_clear(layer, marv->width);
+    }
+    else
+    {
+        display_clear(layer + CANON_GUI_DISPLAY, CANON_GUI_PITCH);
+    }
 #else
     bzero32(rgb_vram_info->bitmap_data, BMP_VRAM_SIZE*4);
 #endif
