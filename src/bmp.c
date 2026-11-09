@@ -286,6 +286,10 @@ void refresh_yuv_from_rgb(void)
         return;
     }
 
+    // clear it before converting: drawing done meanwhile (other tasks)
+    // sets it again, so it gets converted on the next refresh
+    ml_refresh_display_needed = 0;
+
 #ifdef DISPLAY_W
     struct MARV *marv = rgb_vram_info;      // read once, see own_layer()
     uint32_t *layer = (uint32_t *)marv->bitmap_data;
@@ -368,7 +372,6 @@ void refresh_yuv_from_rgb(void)
     XimrExe((void *)XIMR_CONTEXT);
     give_semaphore(winsys_sem);
 #endif
-    ml_refresh_display_needed = 0;
 }
 
 void rgba_buffer_clear()
@@ -1364,6 +1367,7 @@ int bfnt_draw_char(int c, int px, int py, int fg, int bg)
         }
         ptr += bb;
     }
+    ml_refresh_display_needed = 1;
     return crw;
 }
 
