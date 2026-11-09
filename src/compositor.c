@@ -83,8 +83,10 @@ struct MARV *_compositor_create_layer(uint32_t bmp_w, uint32_t bmp_h)
     pNewLayer->flags        = XIMR_FLAGS_LAYER_RGBA; // see compositor.h
 #ifdef CONFIG_DIGIC_X
     extern uint64_t MemifWindow_GetIBusAddress(uint8_t* buf);
-    pNewLayer->memif_1      = 0xFFFFFFFF;   // no idea
+    pNewLayer->unused_0c    = 0;
     pNewLayer->ibus_addr    = MemifWindow_GetIBusAddress(CACHEABLE(pBitmapData));
+    pNewLayer->req_width    = (uint32_t)bmp_w;
+    pNewLayer->unused_2c    = 0;
 #endif
     pNewLayer->width        = (uint32_t)bmp_w;
     pNewLayer->height       = (uint32_t)bmp_h;
