@@ -2011,7 +2011,7 @@ int handle_tricky_canon_calls(struct event *event)
 void EngDrvOut(uint32_t reg, uint32_t value)
 {
     if (ml_shutdown_requested) return;
-#if defined(CONFIG_200D)
+#if defined(CONFIG_200D) || defined(CONFIG_DIGIC_X)
     // 200D doesn't seem to do this check.  Compare ConnectWriteEDmac() on 70D,
     // where it calls into ff2bc3cc(), passing some channel info ptr.  That func
     // only returns the val if the LCLK bit is set.

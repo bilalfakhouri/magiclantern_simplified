@@ -191,14 +191,20 @@ void UnregisterEDmacPopCBR(int channel)
     return;
 }
 
+/* No ENGIO shadow memory on DIGIC X: MMIO is read and written directly.
+ * Only the 0xDxxxxxxx range: anything else comes from legacy code (older
+ * models' 0xC0Fxxxxx registers) and is most likely wrong here. */
 void _EngDrvOut(uint32_t reg, uint32_t value)
 {
-    return;
+    if (reg >> 28 == 0xD)
+    {
+        MEM(reg) = value;
+    }
 }
 
 uint32_t shamem_read(uint32_t addr)
 {
-    return 0;
+    return addr >> 28 == 0xD ? MEM(addr) : 0;
 }
 
 void _engio_write(uint32_t* reg_list)
