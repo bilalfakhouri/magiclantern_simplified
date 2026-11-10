@@ -161,10 +161,21 @@
  * unit 0xa = 0xd24315c0 (ROM tables 0xe1bf6184: 4 unit indices per channel,
  * 0xe1bf75b0: {reg base, connect reg} per unit), control at +0x34 = 0x21,
  * written once per stream start by 0xe0846810.
+ *
+ * Bit depth: setup (0xe035a75a) takes the pack mode from +0x54 (12 / 14 ->
+ * mode 4 / 5; others but 16 assert) and sets xb = +0x54 * +0x58 / 8. The pack
+ * setter writes code << 4 | 1, code 0 / 1 / 2 for 10 / 12 / 14 bpp. Setup
+ * runs again only when +0x04 is 0 - not on imgc_save_raw off / on - and on
+ * a Mem1 reallocation (LV mode change, 0xe035a802, which resets +0x54 to
+ * 14). Measured: writing 0x11 / 0x01 and xb gives clean 12 / 10-bit frames,
+ * the same as Canon's own 12-bit setup; LSB-first like 14-bit; the packer
+ * keeps the top bits (truncates: clip 15998 -> 3999 / 999).
  */
 #define RAW_LV_EDMAC_CHANNEL_ADDR 0xd2430200    // channel 8, EDMAC block 0xd243xxxx, slot 3. Prima::Mem1WritePath.c
 #define RAW_LV_EDMAC_CHANNEL_NUM  8
-#define RAW_LV_IMGC_STATE         0x16038       // Mem1WritePath state: +0x28 save_raw, +0x54 bpp, +0x80 u64 buffer base, +0x88 u64 current write addr (IBus)
+#define RAW_LV_IMGC_STATE         0x16038       // Mem1WritePath state: +0x04 ch 8 set up, +0x28 save_raw, +0x54 bpp, +0x80 u64 buffer base, +0x88 u64 current write addr (IBus)
+#define RAW_LV_WIDTH              (*(int *)(RAW_LV_IMGC_STATE + 0x58))   // raw width in pixels, any bit depth (Mem1WritePath: xb = bpp * width / 8)
+#define RAW_LV_PACK_CTRL          0xd24315f4    // pack register (PACK32_MODE): unit 0xa (ch 8) +0x34, code << 4 | 1, code 0 / 1 / 2 = 10 / 12 / 14 bpp
 
 /**
  * RscMgr pools (old API), type ID = 4th argument of (Continuous)AllocateMemoryResource.

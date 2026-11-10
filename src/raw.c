@@ -799,7 +799,7 @@ static int raw_lv_get_resolution(int* width, int* height)
     uint32_t pitch = raw_lv_edmac->xb & 0x3FFFE;        /* field widths: see struct edmac_mmio */
     if (!pitch) return 0;
 
-    *width  = pitch * 8 / 14;
+    *width  = RAW_LV_WIDTH;     /* xb follows the bit depth, see raw_lv_request_bpp */
     *height = MAX((raw_lv_edmac->yn & 0xFFFF) + 1, (raw_lv_edmac->yb & 0x7FFF) + 1);
     return 1;
 #else // ~CONFIG_EDMAC_RAW_SLURP
@@ -2215,6 +2215,10 @@ int raw_lv_settings_still_valid()
     int w, h;
     if (!raw_lv_get_resolution(&w, &h)) return 0;
     if (w != raw_info.width || h != raw_info.height) return 0;
+#ifdef CONFIG_DIGIC_X
+    /* Canon sets the stream up again at 14 bpp on LV mode changes */
+    if ((raw_lv_edmac->xb & 0x3FFFE) != (uint32_t)raw_info.pitch) return 0;
+#endif
     return 1;
 }
 #endif // CONFIG_RAW_LIVEVIEW
@@ -2656,14 +2660,6 @@ void raw_lv_release()
 
 void raw_lv_request_bpp(int bpp)
 {
-#if defined(CONFIG_DIGIC_X)
-    /* No PACK32 register. On R8 Mem1WritePath picks the EDMAC pack mode
-     * from imgc state +0x54 (12 / 14 / 16 bpp -> pack 4 / 5 / 6) when it
-     * sets up ch 8 (0xe035a75a), and resets it to 14 on each LV Mem1
-     * allocation. Not wired up yet: the stream stays at 14 bpp. */
-    (void)bpp;
-    return;
-#else
     take_semaphore(raw_sem, 0);
 
     /* raw bit depth setup is done from PACK32_MODE register (mask 0x131) */
@@ -2699,28 +2695,43 @@ void raw_lv_request_bpp(int bpp)
 //            MODE_12BIT = 0x300, // likely 8 or 16.  Alternates high and low values, could fit bayer or UYUV etc
 //            MODE_12BIT = 0x2000, // possibly 24 bit?
         };
+    #elif defined(CONFIG_DIGIC_X)
+        // pack unit of the raw EDMAC channel, see RAW_LV_PACK_CTRL
+        // LSB-first like 14-bit, keeps the top bits (truncates)
+        const uint32_t PACK32_MODE = RAW_LV_PACK_CTRL;
+        enum {
+            MODE_16BIT = 0x21, // none, see below
+            MODE_14BIT = 0x21,
+            MODE_12BIT = 0x11,
+            MODE_10BIT = 0x01,
+        };
     #endif
     const uint32_t modes[] = { MODE_10BIT, MODE_12BIT, MODE_14BIT, MODE_16BIT};
 
-    int bpp_index = COERCE((bpp-10)/2, 0, COUNT(modes));
+    int bpp_index = COERCE((bpp-10)/2, 0, COUNT(modes) - 1);
+    #ifdef CONFIG_DIGIC_X
+    /* no 16-bit mode: Canon's 16-bit setup leaves the pack unit alone */
+    bpp_index = MIN(bpp_index, 2);
+    #endif
+    bpp = 10 + bpp_index * 2;
 
-    if (shamem_read(PACK32_MODE) == modes[bpp_index])
-    {
-        /* no change needed */
-        ASSERT(raw_info.bits_per_pixel == bpp);
-    }
-    else
+    if (shamem_read(PACK32_MODE) != modes[bpp_index])
     {
         EngDrvOut(PACK32_MODE, modes[bpp_index]);
-        raw_info.bits_per_pixel = bpp;
-        raw_info.pitch = raw_info.width * raw_info.bits_per_pixel / 8;
-        raw_info.frame_size = raw_info.pitch * raw_info.height;
+        #ifdef CONFIG_DIGIC_X
+        /* Mem1WritePath programs the raw EDMAC once per stream start */
+        raw_lv_edmac->xb = RAW_LV_WIDTH * bpp / 8;
+        #endif
         /* fixme: after switching bit depth, EDMAC needs 1-2 frames to settle */
         wait_lv_frames(2);
     }
 
+    /* also when Canon already went back to 14 bpp (LV mode change) */
+    raw_info.bits_per_pixel = bpp;
+    raw_info.pitch = raw_info.width * raw_info.bits_per_pixel / 8;
+    raw_info.frame_size = raw_info.pitch * raw_info.height;
+
     give_semaphore(raw_sem);
-#endif // !CONFIG_DIGIC_X
 }
 
 void raw_lv_request_digital_gain(int gain)
