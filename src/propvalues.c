@@ -53,8 +53,14 @@ int get_digic_version(void)
 
 PROP_HANDLER(PROP_CAM_MODEL)
 {
+#ifdef CONFIG_DIGIC_X
+    /* "Canon" at 0, camera name at 6, model ID at 0x28 (R8: 1944 bytes) */
+    memcpy((char *)&camera_model_id, (void*)buf + 0x28, 4);
+    snprintf(camera_model, sizeof(camera_model), "%s", (const char *)buf + 6);
+#else
     memcpy((char *)&camera_model_id, (void*)buf + 32, 4);
     snprintf(camera_model, sizeof(camera_model), (const char *)buf);
+#endif
 }
 
 PROP_HANDLER(PROP_BODY_ID)
