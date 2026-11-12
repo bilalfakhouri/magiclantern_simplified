@@ -301,10 +301,16 @@ void lens_set_kelvin(int k);
 void lens_set_kelvin_value_only(int k);
 void lens_set_custom_wb_gains(int gain_R, int gain_G, int gain_B);
 
+#ifdef CONFIG_DIGIC_X
+/* ISO up to 204800 and shutter up to 1/16000, see lens.c */
+#define ISO_ARRAY_LEN 63
+#define SHUTTER_ARRAY_LEN 154
+#else
 #define ISO_ARRAY_LEN 52
 #define SHUTTER_ARRAY_LEN 146
+#endif
 #define APERTURE_ARRAY_LEN 88
-extern const uint16_t values_iso[ISO_ARRAY_LEN];
+extern const uint32_t values_iso[ISO_ARRAY_LEN];
 extern const uint8_t codes_iso[ISO_ARRAY_LEN];
 extern const uint16_t values_shutter[SHUTTER_ARRAY_LEN];
 extern const uint8_t codes_shutter[SHUTTER_ARRAY_LEN];
