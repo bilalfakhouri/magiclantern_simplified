@@ -1539,14 +1539,94 @@ extern int bv_auto;
     #define CONFIG_MOVIE_EXPO_OVERRIDE_DISABLE_SYNC_WITH_PROPS
 #endif
 
+#ifdef CONFIG_DIGIC_X
+/* DIGIC X exposure properties: stops * 0x300 (0x100 = 1/3 stop), with the
+ * zero at Av 0 (f/1.0), Tv 0 (1") and Sv 0 (ISO 3.125). Measured on R8 1.4.0:
+ *   aperture  16 bit   EF f/2.8 = 0x900, f/22 = 0x1B00, EF 50/1.8 open 0x540;
+ *                      RF lenses add 1/16 stop (f/2.8 = 0x930)
+ *   shutter   16 bit   30" = -0xF00, 1" = 0, 1/8000 = 0x2700, Bulb = -0x2100
+ *   ISO       32 bit   100 = 0xF00, 102400 = 0x2D00, Auto = 0
+ * The classic codes are 1/8 stop, 1/3 and 2/3 stop being 3 and 5 eighths:
+ * aperture 8 * Av + 8, shutter 8 * Tv + 56, ISO 8 * Sv + 32. */
+#define SHUTTER_DX_BULB (-0x2100)
+
+/* zero_stops: the classic code for value 0, divided by 8 (aperture 1, shutter 7, ISO 4) */
+static int lens_dx_to_raw(int value, int zero_stops)
+{
+    static const int steps[][2] = { { 0, 0 }, { 0x100, 3 }, { 0x180, 4 }, { 0x200, 5 }, { 0x300, 8 } };
+    int v = value + zero_stops * 0x300;
+
+    if (v <= 0)
+    {
+        return 0;
+    }
+
+    /* Canon's 1/3 and 1/2 stop steps, also with the RF offset */
+    int frac = v % 0x300;
+    for (int i = 0; i < COUNT(steps); i++)
+    {
+        if (ABS(frac - steps[i][0]) < 0x40)
+        {
+            return v / 0x300 * 8 + steps[i][1];
+        }
+    }
+
+    /* lens limits: nearest 1/8 stop */
+    return (v + 47) / 96;
+}
+#endif
+
+static int aperture_prop_to_raw(const uint32_t *buf)
+{
+#ifdef CONFIG_DIGIC_X
+    int av = (uint16_t) buf[0];
+    return av ? lens_dx_to_raw(av, 1) : 0;      /* 0: no lens */
+#else
+    return buf[0];
+#endif
+}
+
+/* zero_is_unset: PROP_SHUTTER_AUTO is 0 when not metering;
+ * for PROP_SHUTTER on DIGIC X, 0 is 1" */
+static int shutter_prop_to_raw(const uint32_t *buf, int zero_is_unset)
+{
+#ifdef CONFIG_DIGIC_X
+    int tv = (int16_t) buf[0];
+    if (tv == 0 && zero_is_unset)
+    {
+        return 0;
+    }
+    if (tv == SHUTTER_DX_BULB)
+    {
+        return SHUTTER_BULB;
+    }
+    return lens_dx_to_raw(tv, 7);
+#else
+    (void) zero_is_unset;
+    return buf[0];
+#endif
+}
+
+static int iso_prop_to_raw(const uint32_t *buf)
+{
+#ifdef CONFIG_DIGIC_X
+    int sv = buf[0];
+    return sv ? lens_dx_to_raw(sv, 4) : 0;      /* 0: Auto ISO */
+#else
+    return buf[0];
+#endif
+}
+
 static int iso_ack = -1;
 PROP_HANDLER( PROP_ISO )
 {
-    if (!CONTROL_BV) lensinfo_set_iso(buf[0]);
+    int raw = iso_prop_to_raw(buf);
+
+    if (!CONTROL_BV) lensinfo_set_iso(raw);
     #ifdef FEATURE_EXPO_OVERRIDE
     else if 
         (
-            buf[0] && !gui_menu_shown()
+            raw && !gui_menu_shown()
             #if defined(ISO_ADJUSTMENT_ACTIVE) || defined(CONFIG_MOVIE_EXPO_OVERRIDE_DISABLE_SYNC_WITH_PROPS)
             && ISO_ADJUSTMENT_ACTIVE
             #endif
@@ -1555,12 +1635,12 @@ PROP_HANDLER( PROP_ISO )
         /* when you adjust ISO from Canon menu, sync expo override too */
         /* this should work even on cameras without manual exposure control, since it's safeguarded by ISO_ADJUSTMENT_ACTIVE */
         /* (that's why ISO_ADJUSTMENT_ACTIVE is mandatory for cameras with CONFIG_NO_MANUAL_EXPOSURE_MOVIE, and optional on others) */
-        bv_set_rawiso(buf[0]);
+        bv_set_rawiso(raw);
     }
     bv_auto_update();
     #endif
     lens_display_set_dirty();
-    iso_ack = buf[0];
+    iso_ack = raw;
 }
 
 void iso_auto_restore_hack()
@@ -1570,7 +1650,7 @@ void iso_auto_restore_hack()
 
 PROP_HANDLER( PROP_ISO_AUTO )
 {
-    uint32_t raw = *(uint32_t *) buf;
+    uint32_t raw = iso_prop_to_raw(buf);
 
     #if defined(FRAME_ISO)
     if (lv && is_movie_mode()) raw = (uint8_t)FRAME_ISO;
@@ -1601,28 +1681,30 @@ PROP_HANDLER( PROP_BV ) // camera-specific
 
 PROP_HANDLER( PROP_SHUTTER )
 {
+    int raw = shutter_prop_to_raw(buf, 0);
+
     if (!CONTROL_BV) 
     {
         if (shooting_mode != SHOOTMODE_AV && shooting_mode != SHOOTMODE_P)
-            lensinfo_set_shutter(buf[0]);
+            lensinfo_set_shutter(raw);
     }
     #ifdef FEATURE_EXPO_OVERRIDE
-    else if (buf[0]  // sync expo override to Canon values
+    else if (raw  // sync expo override to Canon values
             #if !defined(CONFIG_100D) // any other cameras which need this ?
                                       // symptoms: http://www.magiclantern.fm/forum/index.php?topic=16040.msg187050#msg187050
-            && (ABS(buf[0] - lens_info.raw_shutter) > 3) // some cameras may attempt to round shutter value to 1/2 or 1/3 stops
+            && (ABS(raw - lens_info.raw_shutter) > 3) // some cameras may attempt to round shutter value to 1/2 or 1/3 stops
                                                        // especially when pressing half-shutter
             #endif
         #ifdef CONFIG_MOVIE_EXPO_OVERRIDE_DISABLE_SYNC_WITH_PROPS
         && !is_movie_mode()
         #endif
         #ifdef CONFIG_6D
-        && !(buf[0] == FASTEST_SHUTTER_SPEED_RAW )
+        && !(raw == FASTEST_SHUTTER_SPEED_RAW )
         #endif
 
         )
     {
-        bv_set_rawshutter(buf[0]);
+        bv_set_rawshutter(raw);
     }
     bv_auto_update();
     #endif
@@ -1631,19 +1713,21 @@ PROP_HANDLER( PROP_SHUTTER )
 
 PROP_HANDLER( PROP_APERTURE )
 {
-    //~ NotifyBox(2000, "%x %x %x %x ", buf[0], CONTROL_BV, lens_info.raw_aperture_min, lens_info.raw_aperture_max);
+    int raw = aperture_prop_to_raw(buf);
+
+    //~ NotifyBox(2000, "%x %x %x %x ", raw, CONTROL_BV, lens_info.raw_aperture_min, lens_info.raw_aperture_max);
     if (!CONTROL_BV)
     {
-        lensinfo_set_aperture(buf[0]);
+        lensinfo_set_aperture(raw);
     }
     #ifdef FEATURE_EXPO_OVERRIDE
-    else if (buf[0] && !gui_menu_shown()
+    else if (raw && !gui_menu_shown()
         #ifdef CONFIG_MOVIE_EXPO_OVERRIDE_DISABLE_SYNC_WITH_PROPS
         && !is_movie_mode()
         #endif
     )
     {
-        bv_set_rawaperture(COERCE(buf[0], lens_info.raw_aperture_min, lens_info.raw_aperture_max));
+        bv_set_rawaperture(COERCE(raw, lens_info.raw_aperture_min, lens_info.raw_aperture_max));
     }
     bv_auto_update();
     #endif
@@ -1654,19 +1738,20 @@ PROP_HANDLER( PROP_APERTURE_AUTO )
 {
     /* this gets updated in Tv mode (where PROP_APERTURE is not updated); same for P, Auto and so on */
     /* it becomes 0 when camera is no longer metering */
+    int raw = aperture_prop_to_raw(buf);
 
     if (shooting_mode == SHOOTMODE_M || shooting_mode == SHOOTMODE_AV)
     {
         /* in these modes, aperture is not automatic */
         /* however, this property sometimes becomes 0 in these modes as well, but this is not desired */
-        if (buf[0] == 0)
+        if (raw == 0)
             return;
     }
 
     if (!CONTROL_BV)
     {
         /* expo override turned off? */
-        lensinfo_set_aperture(buf[0]);
+        lensinfo_set_aperture(raw);
     }
 
     lens_display_set_dirty();
@@ -1676,12 +1761,13 @@ PROP_HANDLER( PROP_SHUTTER_AUTO )
 {
     /* this gets updated in Av mode (where PROP_SHUTTER is not updated); same for P, Auto and so on */
     /* it becomes 0 when camera is no longer metering */
+    int raw = shutter_prop_to_raw(buf, 1);
     
     if (shooting_mode == SHOOTMODE_M || shooting_mode == SHOOTMODE_TV)
     {
         /* in these modes, shutter is not automatic */
         /* however, this property sometimes becomes 0 in these modes as well, but this is not desired */
-        if (buf[0] == 0)
+        if (raw == 0)
             return;
     }
     
@@ -1689,8 +1775,8 @@ PROP_HANDLER( PROP_SHUTTER_AUTO )
     {
         /* expo override turned off? */
         /* todo: double-check if it's still needed */
-        if (ABS(buf[0] - lens_info.raw_shutter) > 3) 
-            lensinfo_set_shutter(buf[0]);
+        if (ABS(raw - lens_info.raw_shutter) > 3)
+            lensinfo_set_shutter(raw);
     }
     
     lens_display_set_dirty();
