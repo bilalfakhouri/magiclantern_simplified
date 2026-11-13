@@ -100,6 +100,8 @@ extern int backlight_level;
 extern int video_mode_crop;
 extern int video_mode_fps;
 extern int video_mode_resolution; // 0 if full hd, 1 if 720p, 2 if 480p
+extern int video_mode_uhd;        // R8: 1 if 4K UHD (video_mode_resolution stays 0, 16:9)
+extern int video_mode_standby_low_res; // R8: 1 if movie standby uses a low resolution readout
 extern int lv_movie_select;
 extern int sensor_cleaning;
 extern int burst_count;

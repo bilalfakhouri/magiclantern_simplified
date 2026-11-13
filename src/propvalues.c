@@ -221,6 +221,28 @@ PROP_HANDLER(PROP_DISPSENSOR_CTRL)
 volatile int video_mode_crop = 0;
 volatile int video_mode_fps = 0;
 volatile int video_mode_resolution = 0; // 0 if full hd, 1 if 720p, 2 if 480p
+volatile int video_mode_uhd = 0;        // R8: 1 if 4K UHD (video_mode_resolution stays 0, 16:9)
+volatile int video_mode_standby_low_res = 0; // R8: 1 if movie standby uses a low resolution readout
+
+#ifdef CONFIG_R8
+PROP_HANDLER(PROP_MOVIE_MODE_DX)
+{
+    /* dwFrameRate, the shooting rate: 24 for 23.98, 120 in 120 fps HFR */
+    video_mode_fps = (buf[0] + 50) / 100;
+    video_mode_uhd = (buf[2] & 0xFF) == 5;
+    video_mode_resolution = 0;
+}
+
+PROP_HANDLER(PROP_MOVIE_CROP_MODE)
+{
+    video_mode_crop = buf[0];
+}
+
+PROP_HANDLER(PROP_MOVIE_POWER_SAVE_STANDBY_SETTING)
+{
+    video_mode_standby_low_res = buf[0];
+}
+#else
 PROP_HANDLER(PROP_VIDEO_MODE)
 {
     #ifdef CONFIG_500D
@@ -239,6 +261,7 @@ PROP_HANDLER(PROP_VIDEO_MODE)
     video_mode_fps = buf[2];
     #endif
 }
+#endif
 
 #ifdef CONFIG_LIVEVIEW
 PROP_HANDLER( PROP_LV_ACTION )
@@ -287,7 +310,8 @@ PROP_HANDLER(PROP_HDMI_CHANGE_CODE)
     hdmi_vars_update();
 }
 
-#ifdef CONFIG_50D
+#if defined(CONFIG_50D) || defined(CONFIG_R8)
+/* R8: PROP_MVR_REC_START handlers are denied (property_whitelist.h) */
 int __recording = 0;
 int shooting_type = 0;
 PROP_HANDLER(PROP_SHOOTING_TYPE)
@@ -295,15 +319,17 @@ PROP_HANDLER(PROP_SHOOTING_TYPE)
     shooting_type = buf[0];
     __recording = (shooting_type == 4 ? 2 : 0);
 }
+#else
+volatile PROP_INT(PROP_MVR_REC_START, __recording);
+volatile PROP_INT(PROP_SHOOTING_TYPE, shooting_type);
+#endif
 
+#ifdef CONFIG_50D
 PROP_HANDLER(PROP_MOVIE_SIZE_50D)
 {
     video_mode_resolution = buf[0];
     video_mode_fps = 30;
 }
-#else
-volatile PROP_INT(PROP_MVR_REC_START, __recording);
-volatile PROP_INT(PROP_SHOOTING_TYPE, shooting_type);
 #endif
 int __recording_custom = 0;
 
@@ -371,6 +397,10 @@ char* get_video_mode_name(int include_fps)
         !is_movie_mode() && QR_MODE                 ? "PH-QR"    :      /* Photo QuickReview (right after taking a picture) */
         !is_movie_mode() && display_idle()          ? "PH-NOLV"  :      /* Regular photo mode outside LV (ready to take a picture) */
         !is_movie_mode()                            ? "PH-UNK"   :
+        video_mode_uhd && !video_mode_crop && !RECORDING_H264 ? "MV-UHD"   :    /* Movie 4K UHD, standby (R8) */
+        video_mode_uhd &&  video_mode_crop && !RECORDING_H264 ? "MVC-UHD"  :    /* Movie 4K UHD crop, standby */
+        video_mode_uhd && !video_mode_crop &&  RECORDING_H264 ? "REC-UHD"  :    /* Movie 4K UHD, recording */
+        video_mode_uhd &&  video_mode_crop &&  RECORDING_H264 ? "RECC-UHD" :    /* Movie 4K UHD crop, recording */
         video_mode_resolution == 0 && !video_mode_crop && !RECORDING_H264 ? "MV-1080"  :    /* Movie 1080p, standby */
         video_mode_resolution == 1 && !video_mode_crop && !RECORDING_H264 ? "MV-720"   :    /* Movie 720p, standby */
         video_mode_resolution == 2 && !video_mode_crop && !RECORDING_H264 ? "MV-480"   :    /* Movie 480p, standby */

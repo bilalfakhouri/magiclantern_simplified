@@ -465,6 +465,22 @@
 // buf[3]: GoP
 #endif
 
+#ifdef CONFIG_R8
+// PROP_VIDEO_MODE is sent once at startup, not when the movie mode changes (R8 1.4.0).
+// 0x800000C7 has no PROP_ name in the ROM: it is dwFrameRate + MovieElementMain, the
+// first 16 bytes of PROP_MOVIE_CONTROL_PARAM (0x800000CC, 52 bytes), sent along with it.
+// Field names from Canon's debug output.
+#define PROP_MOVIE_MODE_DX 0x800000C7
+// buf[0]: dwFrameRate: shooting fps x 100, nominal (2400 for 23.98, 12000 / 18000 in High Frame Rate)
+// buf[1]: dwFileFrameRate: fps x 100 written to the movie file (2398 for 23.98, 2997 for 120 / 180 fps HFR)
+// buf[2]: bytes: MovieSize (0 if full hd, 5 if 4K UHD), GopStructure, Container, Quality
+// buf[3]: bytes: FrameField, ChromaSample, BitDepth
+#define PROP_MOVIE_CROP_MODE 0x80020054 // 1 if movie crop
+// 1 if Standby: Low res. LiveView then reads the whole 3:2 sensor at 3x6 (R8: 2064x688)
+// in FHD and 4K UHD, until H.264 recording starts
+#define PROP_MOVIE_POWER_SAVE_STANDBY_SETTING 0x800000D8
+#endif
+
 #define PROP_DOF_PREVIEW_MAYBE 0x8005000B
 
 #define PROP_REMOTE_SW1 0x80020015
