@@ -1281,7 +1281,15 @@ int raw_update_params_work()
     /* photo mode and crop/zoom modes use 1:1 readout */
     /* LiveView uses 3x3 column binning / line skipping on most models */
     /* and 3x5 in 720p */
-    if (!lv || zoom || video_mode_crop)
+#ifdef CONFIG_R8
+    /* R8: 1:1 also in 4K UHD and 4K / FHD movie crop; 3x6 in photo mode and with
+     * Standby: Low res. (see readouts above). Binning or skipping is not known;
+     * converters use the sum. */
+    int readout_1x1 = !lv || readout_6k;
+#else
+    int readout_1x1 = !lv || zoom || video_mode_crop;
+#endif
+    if (readout_1x1)
     {
         raw_capture_info.binning_x  = raw_capture_info.binning_y  = 1;
         raw_capture_info.skipping_x = raw_capture_info.skipping_y = 0;
@@ -1294,6 +1302,8 @@ int raw_update_params_work()
         raw_capture_info.skipping_y = 0; raw_capture_info.binning_y  = mv720 ? 5 : 3;
 #elif defined(CONFIG_EOSM)
         raw_capture_info.binning_y  = 1; raw_capture_info.skipping_y = (mv720 || !RECORDING_H264) ? 4 : 2;
+#elif defined(CONFIG_R8)
+        raw_capture_info.binning_y  = 1; raw_capture_info.skipping_y = readout_low_res ? 5 : 2;
 #else
         raw_capture_info.binning_y  = 1; raw_capture_info.skipping_y = mv720 ? 4 : 2;
 #endif
