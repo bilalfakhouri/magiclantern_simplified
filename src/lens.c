@@ -1562,19 +1562,24 @@ extern int bv_auto;
 #endif
 
 #ifdef CONFIG_DIGIC_X
-/* DIGIC X exposure properties: stops * 0x300 (0x100 = 1/3 stop), with the
- * zero at Av 0 (f/1.0), Tv 0 (1") and Sv 0 (ISO 3.125). Measured on R8 1.4.0:
- *   aperture  16 bit   EF f/2.8 = 0x900, f/22 = 0x1B00, EF 50/1.8 open 0x540;
- *                      RF lenses add 1/16 stop (f/2.8 = 0x930)
+/* DIGIC X exposure properties: in 1/768 stop, stops * 0x300 (0x100 = 1/3 stop),
+ * with the zero at Av 0 (f/1.0), Tv 0 (1") and Sv 0 (ISO 3.125). Measured on R8 1.4.0:
+ *   aperture  16 bit   EF f/2.8 = 0x900, f/22 = 0x1B00, EF 50/1.8 open 0x540
  *   shutter   16 bit   30" = -0xF00, 1" = 0, 1/8000 = 0x2700, Bulb = -0x2100
  *   ISO       32 bit   100 = 0xF00, 102400 = 0x2D00, Auto = 0
+ * Aperture values off Canon's 1/3 and 1/2 stop steps:
+ *   wide open, many lenses report their real maximum aperture, -0x20 ... +0x60
+ *   from the nominal one (EOS R, kitor: RF 24-105 f/4 = 0xC60, Sigma f/3.5 = 0xAE0);
+ *   stopped down, they are on the steps. Except RF 16mm f/2.8 on R8: +0x30 at
+ *   every setting (f/2.8 = 0x930, f/22 = 0x1B30)
  * The classic codes are 1/8 stop, 1/3 and 2/3 stop being 3 and 5 eighths:
  * aperture 8 * Av + 8, shutter 8 * Tv + 56, ISO 8 * Sv + 32. */
 #define SHUTTER_DX_BULB (-0x2100)
 
-/* zero_stops: the classic code for value 0, divided by 8 (aperture 1, shutter 7, ISO 4) */
+/* zero_stops: the classic offset (+8, +56, +32 above) in stops: aperture 1, shutter 7, ISO 4 */
 static int lens_dx_to_raw(int value, int zero_stops)
 {
+    /* Canon's 1/3 and 1/2 stop steps: { fraction of a stop in 1/768 stop, in classic eighths } */
     static const int steps[][2] = { { 0, 0 }, { 0x100, 3 }, { 0x180, 4 }, { 0x200, 5 }, { 0x300, 8 } };
     int v = value + zero_stops * 0x300;
 
@@ -1583,7 +1588,7 @@ static int lens_dx_to_raw(int value, int zero_stops)
         return 0;
     }
 
-    /* Canon's 1/3 and 1/2 stop steps, also with the RF offset */
+    /* within 0x40 of a step (also RF 16mm +0x30, some lenses wide open): that step */
     int frac = v % 0x300;
     for (int i = 0; i < COUNT(steps); i++)
     {
@@ -1593,7 +1598,8 @@ static int lens_dx_to_raw(int value, int zero_stops)
         }
     }
 
-    /* lens limits: nearest 1/8 stop */
+    /* more than 0x40 from every step, e.g. some lenses wide open
+     * (0xC60 = f/4 + 1/8 stop, shown as f/4.1): nearest 1/8 stop */
     return (v + 47) / 96;
 }
 #endif
