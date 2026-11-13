@@ -932,6 +932,18 @@ int raw_update_params_work()
     int mv640crop = mv && video_mode_resolution == 2 && video_mode_crop;
     int zoom = lv_dispsize > 1;
 
+#ifdef CONFIG_R8
+    /* R8 1.4.0 LiveView readouts, by video mode:
+     * 2064x688, 3x6 over the whole 3:2 sensor: photo mode, and movie standby
+     *     with Standby: Low res. (FHD, 4K UHD, 4K / FHD movie crop) until
+     *     H.264 recording starts
+     * 6192 wide, 1:1: x5 / x10 zoom (6192x4120),
+     *     4K UHD and 4K / FHD movie crop (6192x3496)
+     * 2064x1168, 3x3 over the 4K UHD area: FHD */
+    int readout_low_res = !zoom && (!mv || (video_mode_standby_low_res && !RECORDING_H264));
+    int readout_6k = !readout_low_res && (zoom || video_mode_uhd || video_mode_crop);
+#endif
+
     // FIXME SJE what is this terrible hack?  Presumably much better to fix the code instead of hiding errors?
     /* silence warnings; not all cameras have all these modes */
     (void)mv640; (void)mv720; (void)mv1080; (void)mv1080crop; (void)mv640crop; (void)zoom;
@@ -1099,10 +1111,28 @@ int raw_update_params_work()
         #endif
 
         #ifdef CONFIG_R8
-        // while idle  (not recording H.264) and in all video modes, R8 uses 5x3 binning mode --> 2064x688 RAW frame size
-        skip_top    = 16;
-        skip_left   = 56;
-        skip_bottom = 1;
+        /* optical black per readout (see above):
+         * 6192 wide: 154 OB columns left, 96 OB rows top, 12 white columns right
+         * 2064x688: 50 OB columns left, then 2 dim ones; 16 OB rows top;
+         *     row 685 is black and row 687 white
+         * 2064x1168: as 2064x688, but 32 OB rows top, nothing at the bottom */
+        if (readout_low_res)
+        {
+            skip_left   = 52;
+            skip_top    = 16;
+            skip_bottom = 4;
+        }
+        else if (readout_6k)
+        {
+            skip_left   = 154;
+            skip_right  = 12;
+            skip_top    = 96;
+        }
+        else
+        {
+            skip_left   = 52;
+            skip_top    = 32;
+        }
         #endif
 
         #ifdef CONFIG_6D2
